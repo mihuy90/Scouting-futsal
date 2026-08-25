@@ -270,11 +270,12 @@ with tab3:
         
         st.markdown("---")
         
-        # GRÁFICOS CIRCULARES (DONUT CHARTS)
+        # GRÁFICOS CIRCULARES
         col_pie1, col_pie2 = st.columns(2)
         
+        # IZQUIERDA: EFECTIVIDAD GLOBAL
         with col_pie1:
-            st.subheader("🎯 % Efectividad por Resultado")
+            st.subheader("🎯 % Efectividad General")
             df_res_counts = df_rival2["Resultado"].value_counts().reset_index()
             df_res_counts.columns = ["Resultado", "Cantidad"]
             
@@ -290,28 +291,48 @@ with tab3:
             fig_pie_res.update_layout(showlegend=False, margin=dict(t=20, b=20, l=10, r=10))
             st.plotly_chart(fig_pie_res, use_container_width=True)
             
+        # DERECHA: EFECTIVIDAD POR ELEMENTO ESPECÍFICO (CON SELECTOR)
         with col_pie2:
-            st.subheader("📌 Distribución por Elemento de Juego")
-            df_elem_counts = df_rival2["Elemento"].value_counts().reset_index()
-            df_elem_counts.columns = ["Elemento", "Cantidad"]
+            st.subheader("🔍 Analizar Elemento Específico")
+            elementos_disponibles_rival = ["Todos los Elementos"] + df_rival2["Elemento"].unique().tolist()
+            elem_filtrado_pie = st.selectbox("Selecciona para ver su efectividad:", elementos_disponibles_rival, key="elem_pie_derecha")
             
-            fig_pie_elem = px.pie(
-                df_elem_counts, 
-                values="Cantidad", 
-                names="Elemento",
-                color_discrete_sequence=px.colors.qualitative.Pastel,
-                hole=0.45
-            )
-            fig_pie_elem.update_traces(textposition='inside', textinfo='percent+label+value')
-            fig_pie_elem.update_layout(showlegend=False, margin=dict(t=20, b=20, l=10, r=10))
-            st.plotly_chart(fig_pie_elem, use_container_width=True)
+            if elem_filtrado_pie == "Todos los Elementos":
+                df_elem_counts = df_rival2["Elemento"].value_counts().reset_index()
+                df_elem_counts.columns = ["Elemento", "Cantidad"]
+                
+                fig_pie_elem = px.pie(
+                    df_elem_counts, 
+                    values="Cantidad", 
+                    names="Elemento",
+                    color_discrete_sequence=px.colors.qualitative.Pastel,
+                    hole=0.45
+                )
+                fig_pie_elem.update_traces(textposition='inside', textinfo='percent+label+value')
+                fig_pie_elem.update_layout(showlegend=False, margin=dict(t=20, b=20, l=10, r=10))
+                st.plotly_chart(fig_pie_elem, use_container_width=True)
+            else:
+                df_sub_elem = df_rival2[df_rival2["Elemento"] == elem_filtrado_pie]
+                df_sub_counts = df_sub_elem["Resultado"].value_counts().reset_index()
+                df_sub_counts.columns = ["Resultado", "Cantidad"]
+                
+                fig_pie_elem = px.pie(
+                    df_sub_counts, 
+                    values="Cantidad", 
+                    names="Resultado",
+                    color="Resultado",
+                    color_discrete_map=COLOR_MAP,
+                    hole=0.45
+                )
+                fig_pie_elem.update_traces(textposition='inside', textinfo='percent+label+value')
+                fig_pie_elem.update_layout(showlegend=False, margin=dict(t=20, b=20, l=10, r=10))
+                st.plotly_chart(fig_pie_elem, use_container_width=True)
 
         st.markdown("---")
         
         # TABLA DE REGISTROS ORDENADA POR ACCIONES
         st.subheader("📋 Registro Detallado (Ordenado por Frecuencia de Acción)")
         
-        # Ordenamos las acciones del partido o jornada
         df_ordenado = df_rival2.sort_values(by=["Elemento", "Resultado"], ascending=True)
         st.dataframe(df_ordenado, use_container_width=True)
         
