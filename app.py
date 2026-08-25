@@ -9,11 +9,15 @@ import os
 st.set_page_config(page_title="Scouting Futsal Pro", layout="wide")
 st.title("⚽ Scouting & Análisis Táctico - Fútbol Sala")
 
-# 1. Base de datos local
+# 1. Base de datos local de acciones
 if "datos" not in st.session_state:
     st.session_state.datos = pd.DataFrame(columns=[
         "Rival", "Jornada", "Elemento", "Zona", "Resultado", "X", "Y"
     ])
+
+# 2. Base de datos local de observaciones/notas por rival y elemento
+if "observaciones" not in st.session_state:
+    st.session_state.observaciones = {} # Estrutura: { "Rival": { "Elemento": "Texto de nota..." } }
 
 # DICCIONARIO DE COLORES SEGÚN RESULTADO
 COLOR_MAP = {
@@ -49,6 +53,16 @@ SIZE_MAP = {
     "Remate Fuera": 11,
     "Pérdida / Bloqueado": 11
 }
+
+ELEMENTOS_LISTA = [
+    "Córner", 
+    "Banda", 
+    "Contraataque", 
+    "Falta Directa", 
+    "Doble Penalti", 
+    "Penalti", 
+    "Juego Continuo / Tiro"
+]
 
 # Función para dibujar la pista oficial
 def dibujar_pista(df_puntos=None, modo="limpio"):
@@ -149,19 +163,7 @@ jornada = st.sidebar.number_input("Partido / Jornada", min_value=1, max_value=30
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("1. Elemento de Juego")
-elemento = st.sidebar.radio(
-    "Elemento:",
-    [
-        "Córner", 
-        "Banda", 
-        "Contraataque", 
-        "Falta Directa", 
-        "Doble Penalti", 
-        "Penalti", 
-        "Juego Continuo / Tiro"
-    ],
-    index=0
-)
+elemento = st.sidebar.radio("Elemento:", ELEMENTOS_LISTA, index=0)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("2. Resultado")
@@ -203,7 +205,13 @@ if st.sidebar.button("🗑️ Empezar Nuevo Partido (Limpiar)", type="secondary"
     st.rerun()
 
 # --- PESTAÑAS PRINCIPALES ---
-tab1, tab2, tab3, tab4 = st.tabs(["🎯 Registrador Interactivo", "🔥 Mapa de Precisión / Calor", "📊 Estadísticas Acumuladas", "📄 Exportar PDF"])
+tab1, tab2, tab3, tab_obs, tab4 = st.tabs([
+    "🎯 Registrador Interactivo", 
+    "🔥 Mapa de Precisión", 
+    "📊 Estadísticas", 
+    "📝 Observaciones Tácticas",
+    "📄 Exportar PDF"
+])
 
 df_totales = st.session_state.datos
 
@@ -252,7 +260,7 @@ with tab1:
             st.success(f"📌 ¡Guardado! {elemento} ({resultado}) en X:{pos_x}m, Y:{pos_y}m")
             st.rerun()
 
-# PESTAÑA 2: MAPA DE CALOR CON ICONOS SEGÚN ELEMENTO
+# PESTAÑA 2: MAPA DE CALOR
 with tab2:
     st.header("🔥 Mapa de Calor y Origen del Golpeo")
     if not df_totales.empty:
@@ -285,14 +293,13 @@ with tab2:
     else:
         st.info("Aún no has registrado ningún tiro.")
 
-# PESTAÑA 3: ESTADÍSTICAS AVANZADAS Y GRÁFICOS CIRCULARES SIMÉTRICOS
+# PESTAÑA 3: ESTADÍSTICAS
 with tab3:
     st.header("📊 Estadísticas Acumuladas & Efectividad")
     if not df_totales.empty:
         rival_sel2 = st.selectbox("Seleccionar Rival para Análisis:", df_totales["Rival"].unique(), key="acum_rival")
         df_rival2 = df_totales[df_totales["Rival"] == rival_sel2]
         
-        # MÉTRICAS TOP
         c1, c2, c3, c4 = st.columns(4)
         total_acc = len(df_rival2)
         goles_cnt = len(df_rival2[df_rival2["Resultado"] == "Gol"])
@@ -308,10 +315,8 @@ with tab3:
         
         st.markdown("---")
         
-        # COLUMNAS SIMÉTRICAS
         col_pie1, col_pie2 = st.columns(2)
         
-        # IZQUIERDA: EFECTIVIDAD GENERAL (CON DESPLEGABLE DE FILTRO DE JORNADA)
         with col_pie1:
             st.subheader("🎯 % Efectividad General")
             jornadas_disponibles = ["Todas las Jornadas"] + sorted(df_rival2["Jornada"].unique().tolist())
@@ -336,7 +341,6 @@ with tab3:
             fig_pie_res.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
             st.plotly_chart(fig_pie_res, use_container_width=True)
             
-        # DERECHA: ANALIZAR ELEMENTO ESPECÍFICO (CON DESPLEGABLE DE ELEMENTO)
         with col_pie2:
             st.subheader("🔍 Analizar Elemento Específico")
             elementos_disponibles_rival = ["Todos los Elementos"] + df_rival2["Elemento"].unique().tolist()
@@ -374,27 +378,51 @@ with tab3:
                 st.plotly_chart(fig_pie_elem, use_container_width=True)
 
         st.markdown("---")
-        
-        # TABLA DE REGISTROS ORDENADA POR ACCIONES
-        st.subheader("📋 Registro Detallado (Ordenado por Frecuencia de Acción)")
-        
+        st.subheader("📋 Registro Detallado")
         df_ordenado = df_rival2.sort_values(by=["Elemento", "Resultado"], ascending=True)
         st.dataframe(df_ordenado, use_container_width=True)
-        
     else:
         st.info("No hay datos estadísticos acumulados.")
 
-# PESTAÑA 4: EXPORTAR PDF COMPLETO CON TODOS LOS GRÁFICOS Y VARIANTES
+# NUEVA PESTAÑA: OBSERVACIONES TÁCTICAS
+with tab_obs:
+    st.header("📝 Observaciones y Anotaciones Tácticas por Acción")
+    st.markdown("Escribe tus notas de scouting desglosadas para que salgan perfectamente organizadas en el PDF final.")
+    
+    lista_rivales_obs = df_totales["Rival"].unique().tolist() if not df_totales.empty else [rival]
+    rival_obs_sel = st.selectbox("Seleccionar Rival para añadir notas:", lista_rivales_obs, key="obs_rival_select")
+    
+    if rival_obs_sel not in st.session_state.observaciones:
+        st.session_state.observaciones[rival_obs_sel] = {}
+
+    st.markdown("---")
+    
+    # Formulario para cada elemento de juego
+    for elem in ELEMENTOS_LISTA:
+        val_previo = st.session_state.observaciones[rival_obs_sel].get(elem, "")
+        
+        texto_nota = st.text_area(
+            label=f"📌 Notas sobre: **{elem}**",
+            value=val_previo,
+            placeholder=f"Ej: Suelen buscar bloqueo al primer palo en los {elem.lower()}s. Ojo con la llegada desde atrás...",
+            key=f"obs_input_{rival_obs_sel}_{elem}",
+            height=100
+        )
+        st.session_state.observaciones[rival_obs_sel][elem] = texto_nota
+
+    st.success("💾 ¡Notas guardadas automáticamente en tiempo real!")
+
+# PESTAÑA 4: EXPORTAR PDF
 with tab4:
     st.header("📄 Exportar Informe Completo en PDF")
     if not df_totales.empty:
         rival_export = st.selectbox("Seleccionar Rival para Exportar PDF:", df_totales["Rival"].unique(), key="pdf_rival_sel")
         
-        if st.button("🚀 Generar PDF con Todos los Gráficos", type="primary", use_container_width=True):
-            with st.spinner("Procesando gráficos y maquetando el PDF... Esto puede tardar unos segundos..."):
+        if st.button("🚀 Generar PDF con Observaciones Tácticas", type="primary", use_container_width=True):
+            with st.spinner("Procesando gráficos y maquetando observaciones en el PDF..."):
                 df_pdf = df_totales[df_totales["Rival"] == rival_export]
+                obs_rival = st.session_state.observaciones.get(rival_export, {})
                 
-                # Crear PDF con FPDF
                 pdf = FPDF()
                 pdf.set_auto_page_break(auto=True, margin=15)
                 
@@ -408,8 +436,8 @@ with tab4:
                 pdf.cell(190, 6, text=f"Total de acciones registradas: {len(df_pdf)}", new_x="LMARGIN", new_y="NEXT", align='C')
                 pdf.ln(5)
                 
-                # Guardar e insertar Mapa de Pista Completo
                 with tempfile.TemporaryDirectory() as tmpdir:
+                    # Mapa Pista
                     fig_pista_pdf = dibujar_pista(df_puntos=df_pdf, modo="calor")
                     fig_pista_pdf.update_layout(paper_bgcolor="white", plot_bgcolor="#0f172a")
                     img_pista_path = os.path.join(tmpdir, "mapa_pista.png")
@@ -420,12 +448,11 @@ with tab4:
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(5)
                     
-                    # PÁGINA 2: GRÁFICOS GENERALES Y POR ELEMENTO
+                    # PÁGINA 2: GRÁFICOS GENERALES
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text="2. Análisis de Efectividad General y Distribución", new_x="LMARGIN", new_y="NEXT")
                     
-                    # 2.1 Gráfico Efectividad General
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
                     fig_res = px.pie(df_res, values="Cantidad", names="Resultado", color="Resultado", color_discrete_map=COLOR_MAP, hole=0.4)
@@ -434,29 +461,24 @@ with tab4:
                     img_res_path = os.path.join(tmpdir, "efectividad_general.png")
                     fig_res.write_image(img_res_path, width=600, height=400, scale=2)
                     
-                    # 2.2 Gráfico Distribución por Elemento
                     df_elem = df_pdf["Elemento"].value_counts().reset_index()
                     df_elem.columns = ["Elemento", "Cantidad"]
                     fig_elem = px.pie(df_elem, values="Cantidad", names="Elemento", color_discrete_sequence=px.colors.qualitative.Pastel, hole=0.4)
                     fig_elem.update_traces(textposition='inside', textinfo='percent+label+value')
-                    fig_elem.update_layout(title_text="Distribución Global por Elemento de Juego", paper_bgcolor="white")
+                    fig_elem.update_layout(title_text="Distribución Global por Elemento", paper_bgcolor="white")
                     img_elem_path = os.path.join(tmpdir, "distribucion_elementos.png")
                     fig_elem.write_image(img_elem_path, width=600, height=400, scale=2)
                     
-                    # Insertar ambos gráficos en paralelo/seguidos
                     pdf.image(img_res_path, x=10, y=30, w=90)
                     pdf.image(img_elem_path, x=105, y=30, w=90)
-                    pdf.set_y(100)
                     
-                    # 3. EFECTIVIDAD DESGLOSADA POR CADA ELEMENTO ESPECÍFICO
-                    pdf.ln(10)
+                    # PÁGINA 3 EN ADELANTE: EFECTIVIDAD + OBSERVACIONES DESGLOSADAS
+                    pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
-                    pdf.cell(190, 10, text="3. Efectividad Desglosada por Tipo de Jugada", new_x="LMARGIN", new_y="NEXT")
+                    pdf.cell(190, 10, text="3. Análisis Táctico y Observaciones por Jugada", new_x="LMARGIN", new_y="NEXT")
+                    pdf.ln(5)
                     
-                    elementos_unicos = df_pdf["Elemento"].unique().tolist()
-                    
-                    y_pos = 120
-                    col_counter = 0
+                    elementos_unicos = [e for e in ELEMENTOS_LISTA if e in df_pdf["Elemento"].unique()]
                     
                     for idx, elem_nombre in enumerate(elementos_unicos):
                         df_sub = df_pdf[df_pdf["Elemento"] == elem_nombre]
@@ -477,18 +499,34 @@ with tab4:
                         img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
                         fig_sub.write_image(img_sub_path, width=500, height=350, scale=2)
                         
-                        # Si no cabe en la página actual, nueva página
-                        if y_pos > 200:
+                        # Comprobar espacio vertical suficiente
+                        if pdf.get_y() > 200:
                             pdf.add_page()
-                            y_pos = 20
-                            col_counter = 0
-                            
-                        x_pos = 10 if (col_counter % 2 == 0) else 105
-                        pdf.image(img_sub_path, x=x_pos, y=y_pos, w=90)
                         
-                        if col_counter % 2 != 0:
-                            y_pos += 75
-                        col_counter += 1
+                        curr_y = pdf.get_y()
+                        pdf.set_font("Helvetica", 'B', 12)
+                        pdf.cell(190, 8, text=f"🔹 ACCIÓN: {elem_nombre.upper()}", new_x="LMARGIN", new_y="NEXT")
+                        
+                        # Gráfico a la izquierda
+                        pdf.image(img_sub_path, x=10, y=curr_y + 8, w=80)
+                        
+                        # Observaciones a la derecha
+                        pdf.set_xy(95, curr_y + 8)
+                        pdf.set_font("Helvetica", 'B', 10)
+                        pdf.cell(105, 6, text="Notas y Conclusiones Tácticas:", new_x="LMARGIN", new_y="NEXT")
+                        
+                        pdf.set_x(95)
+                        pdf.set_font("Helvetica", size=9)
+                        
+                        nota_texto = obs_rival.get(elem_nombre, "").strip()
+                        if not nota_texto:
+                            nota_texto = "Sin observaciones registradas para este tipo de acción."
+                            
+                        pdf.multi_cell(105, 5, text=nota_texto, border=1)
+                        
+                        # Posicionar cursor tras el bloque
+                        pdf.set_y(max(curr_y + 70, pdf.get_y() + 10))
+                        pdf.ln(5)
 
                     # PÁGINA FINAL: TABLA DETALLADA DE REGISTROS
                     pdf.add_page()
@@ -518,9 +556,9 @@ with tab4:
                     
                     st.success("✅ ¡PDF completo generado con éxito!")
                     st.download_button(
-                        label="📥 Descargar Reporte Técnico en PDF",
+                        label="📥 Descargar Reporte Técnico Completo en PDF",
                         data=pdf_bytes,
-                        file_name=f"Informe_Completo_Scouting_{rival_export}.pdf",
+                        file_name=f"Informe_Scouting_{rival_export}.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
