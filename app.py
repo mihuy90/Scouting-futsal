@@ -451,30 +451,51 @@ with tab4:
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(5)
                     
-                    # PÁGINA 2: GRÁFICOS GENERALES (EFECTIVIDAD + BARRAS HORIZONTALES POR ELEMENTO)
+                    # PÁGINA 2: GRÁFICOS GENERALES CORREGIDOS Y PERFECTAMENTE MAQUETADOS
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("2. Analisis de Efectividad General y Distribucion"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(2)
                     
-                    # 1. Efectividad Global (% Resultados)
+                    # 1. Efectividad Global (% Resultados) - DONA CON TEXTO DENTRO Y LEYENDA CLARA
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
-                    fig_res = px.pie(df_res, values="Cantidad", names="Resultado", color="Resultado", color_discrete_map=COLOR_MAP_PDF, hole=0.35)
-                    fig_res.update_traces(textposition='auto', textinfo='percent+label+value', textfont_size=15)
+                    fig_res = px.pie(
+                        df_res, 
+                        values="Cantidad", 
+                        names="Resultado", 
+                        color="Resultado", 
+                        color_discrete_map=COLOR_MAP_PDF, 
+                        hole=0.4
+                    )
+                    fig_res.update_traces(
+                        textposition='inside', 
+                        textinfo='percent+value', 
+                        textfont_size=14
+                    )
                     fig_res.update_layout(
                         title_text="Efectividad Global (% Resultados)", 
                         paper_bgcolor="white", 
-                        font=dict(size=14),
-                        legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5)
+                        font=dict(size=13),
+                        legend=dict(
+                            orientation="h", 
+                            yanchor="top", 
+                            y=-0.08, 
+                            xanchor="center", 
+                            x=0.5,
+                            font=dict(size=12)
+                        ),
+                        margin=dict(l=30, r=30, t=50, b=60)
                     )
                     img_res_path = os.path.join(tmpdir, "efectividad_general.png")
-                    fig_res.write_image(img_res_path, width=850, height=500, scale=2)
+                    fig_res.write_image(img_res_path, width=900, height=480, scale=2)
                     
-                    # 2. Distribución Global por Elemento (OPCIÓN 2: BARRAS HORIZONTALES LIMPIAS)
+                    # 2. Distribución Global por Elemento - BARRAS HORIZONTALES CON MARGEN IZQUIERDO CORREGIDO
                     df_elem = df_pdf["Elemento"].value_counts().reset_index()
                     df_elem.columns = ["Elemento", "Cantidad"]
                     df_elem = df_elem.sort_values(by="Cantidad", ascending=True)
+
+                    max_val = df_elem["Cantidad"].max() if not df_elem.empty else 10
 
                     fig_elem = px.bar(
                         df_elem, 
@@ -487,9 +508,9 @@ with tab4:
                     )
 
                     fig_elem.update_traces(
-                        texttemplate='%{text} acciones', 
+                        texttemplate=' %{text} acciones', 
                         textposition='outside',
-                        textfont_size=13
+                        textfont_size=12
                     )
 
                     fig_elem.update_layout(
@@ -497,18 +518,23 @@ with tab4:
                         paper_bgcolor="white", 
                         plot_bgcolor="white",
                         showlegend=False,
-                        xaxis=dict(showgrid=True, gridcolor="#f0f0f0", title="Nº de Acciones"),
-                        yaxis=dict(title=""),
+                        xaxis=dict(
+                            showgrid=True, 
+                            gridcolor="#f0f0f0", 
+                            title="Nº de Acciones",
+                            range=[0, max_val * 1.25]  # Evita que el texto de la barra derecha se corte
+                        ),
+                        yaxis=dict(title="", tickfont=dict(size=12)),
                         font=dict(size=13),
-                        margin=dict(l=20, r=40, t=40, b=40)
+                        margin=dict(l=180, r=80, t=50, b=50) # l=180 evita que "Juego Continuo / Tiro" se recorte a la izquierda
                     )
 
                     img_elem_path = os.path.join(tmpdir, "distribucion_elementos.png")
-                    fig_elem.write_image(img_elem_path, width=850, height=450, scale=2)
+                    fig_elem.write_image(img_elem_path, width=900, height=480, scale=2)
                     
-                    # Insertar ambas imágenes en la página 2
-                    pdf.image(img_res_path, x=20, y=30, w=170)
-                    pdf.image(img_elem_path, x=20, y=145, w=170)
+                    # Insertar ambas imágenes en la página 2 con proporciones ajustadas
+                    pdf.image(img_res_path, x=15, y=30, w=180)
+                    pdf.image(img_elem_path, x=15, y=145, w=180)
                     
                     # PÁGINA 3 EN ADELANTE: EFECTIVIDAD GIGANTE + NOTAS DEBAJO
                     pdf.add_page()
