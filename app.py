@@ -451,7 +451,7 @@ with tab4:
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(5)
                     
-                    # PÁGINA 2: GRÁFICOS GENERALES MÁS GRANDES (UNO DEBAJO DEL OTRO)
+                    # PÁGINA 2: GRÁFICOS GENERALES GIGANTES
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("2. Analisis de Efectividad General y Distribucion"), new_x="LMARGIN", new_y="NEXT")
@@ -460,30 +460,40 @@ with tab4:
                     # 1. Efectividad Global
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
-                    fig_res = px.pie(df_res, values="Cantidad", names="Resultado", color="Resultado", color_discrete_map=COLOR_MAP_PDF, hole=0.4)
-                    fig_res.update_traces(textposition='inside', textinfo='percent+label+value', textfont_size=13)
-                    fig_res.update_layout(title_text="Efectividad Global (% Resultados)", paper_bgcolor="white", font=dict(size=12))
+                    fig_res = px.pie(df_res, values="Cantidad", names="Resultado", color="Resultado", color_discrete_map=COLOR_MAP_PDF, hole=0.35)
+                    fig_res.update_traces(textposition='auto', textinfo='percent+label+value', textfont_size=15)
+                    fig_res.update_layout(
+                        title_text="Efectividad Global (% Resultados)", 
+                        paper_bgcolor="white", 
+                        font=dict(size=14),
+                        legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5)
+                    )
                     img_res_path = os.path.join(tmpdir, "efectividad_general.png")
-                    fig_res.write_image(img_res_path, width=800, height=450, scale=2)
+                    fig_res.write_image(img_res_path, width=850, height=500, scale=2)
                     
                     # 2. Distribución por Elementos
                     df_elem = df_pdf["Elemento"].value_counts().reset_index()
                     df_elem.columns = ["Elemento", "Cantidad"]
-                    fig_elem = px.pie(df_elem, values="Cantidad", names="Elemento", color_discrete_sequence=px.colors.qualitative.Pastel, hole=0.4)
-                    fig_elem.update_traces(textposition='inside', textinfo='percent+label+value', textfont_size=13)
-                    fig_elem.update_layout(title_text="Distribucion Global por Elemento", paper_bgcolor="white", font=dict(size=12))
+                    fig_elem = px.pie(df_elem, values="Cantidad", names="Elemento", color_discrete_sequence=px.colors.qualitative.Pastel, hole=0.35)
+                    fig_elem.update_traces(textposition='auto', textinfo='percent+label+value', textfont_size=15)
+                    fig_elem.update_layout(
+                        title_text="Distribucion Global por Elemento", 
+                        paper_bgcolor="white", 
+                        font=dict(size=14),
+                        legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5)
+                    )
                     img_elem_path = os.path.join(tmpdir, "distribucion_elementos.png")
-                    fig_elem.write_image(img_elem_path, width=800, height=450, scale=2)
+                    fig_elem.write_image(img_elem_path, width=850, height=500, scale=2)
                     
-                    # Insertar imágenes más grandes en la página 2
-                    pdf.image(img_res_path, x=30, y=30, w=150)
-                    pdf.image(img_elem_path, x=30, y=150, w=150)
+                    # Insertar imágenes bien centradas
+                    pdf.image(img_res_path, x=20, y=30, w=170)
+                    pdf.image(img_elem_path, x=20, y=145, w=170)
                     
-                    # PÁGINA 3 EN ADELANTE: EFECTIVIDAD + OBSERVACIONES DESGLOSADAS
+                    # PÁGINA 3 EN ADELANTE: EFECTIVIDAD GIGANTE + NOTAS DEBAJO
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("3. Analisis Tactico y Observaciones por Jugada"), new_x="LMARGIN", new_y="NEXT")
-                    pdf.ln(5)
+                    pdf.ln(3)
                     
                     elementos_unicos = [e for e in ELEMENTOS_LISTA if e in df_pdf["Elemento"].unique()]
                     
@@ -498,42 +508,44 @@ with tab4:
                             names="Resultado", 
                             color="Resultado", 
                             color_discrete_map=COLOR_MAP_PDF, 
-                            hole=0.4
+                            hole=0.35
                         )
-                        fig_sub.update_traces(textposition='inside', textinfo='percent+label+value', textfont_size=12)
-                        fig_sub.update_layout(title_text=f"Efectividad: {elem_nombre}", paper_bgcolor="white", font=dict(size=11))
+                        # Texto grande y claro dentro y fuera del queso
+                        fig_sub.update_traces(textposition='auto', textinfo='percent+label+value', textfont_size=14)
+                        # Leyenda horizontal abajo para liberar el ancho total del dona
+                        fig_sub.update_layout(
+                            title_text=f"Efectividad: {elem_nombre}", 
+                            paper_bgcolor="white", 
+                            font=dict(size=13),
+                            margin=dict(l=20, r=20, t=40, b=40),
+                            legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5)
+                        )
                         
                         img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
-                        fig_sub.write_image(img_sub_path, width=650, height=450, scale=2)
+                        fig_sub.write_image(img_sub_path, width=750, height=450, scale=2)
                         
-                        # Comprobar si cabe en la página actual (altura necesaria aprox 80mm)
-                        if pdf.get_y() > 190:
+                        # Si no cabe el bloque completo (110mm aprox), nueva página
+                        if pdf.get_y() > 170:
                             pdf.add_page()
                         
-                        curr_y = pdf.get_y()
                         pdf.set_font("Helvetica", 'B', 12)
                         pdf.cell(190, 8, text=limpiar_texto(f"-> ACCION: {elem_nombre.upper()}"), new_x="LMARGIN", new_y="NEXT")
                         
-                        # Gráfico ampliado a la izquierda (95mm de ancho)
-                        pdf.image(img_sub_path, x=8, y=curr_y + 8, w=95)
+                        # Gráfico centrado gigante (140mm de ancho)
+                        pdf.image(img_sub_path, x=35, y=pdf.get_y(), w=140)
+                        pdf.set_y(pdf.get_y() + 85) # Bajar después de la imagen
                         
-                        # Observaciones a la derecha
-                        pdf.set_xy(106, curr_y + 8)
+                        # Notas debajo ocupando todo el ancho
                         pdf.set_font("Helvetica", 'B', 10)
-                        pdf.cell(94, 6, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
+                        pdf.cell(190, 6, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
                         
-                        pdf.set_x(106)
                         pdf.set_font("Helvetica", size=9)
-                        
                         nota_texto = obs_rival.get(elem_nombre, "").strip()
                         if not nota_texto:
                             nota_texto = "Sin observaciones registradas para este tipo de accion."
                             
-                        pdf.multi_cell(94, 5, text=limpiar_texto(nota_texto), border=1)
-                        
-                        # Posicionar cursor para el siguiente bloque con espacio cómodo
-                        pdf.set_y(max(curr_y + 78, pdf.get_y() + 10))
-                        pdf.ln(5)
+                        pdf.multi_cell(190, 5, text=limpiar_texto(nota_texto), border=1)
+                        pdf.ln(8)
 
                     # PÁGINA FINAL: TABLA DETALLADA DE REGISTROS
                     pdf.add_page()
@@ -561,7 +573,7 @@ with tab4:
 
                     pdf_bytes = bytes(pdf.output())
                     
-                    st.success("✅ ¡PDF optimizado generado con éxito!")
+                    st.success("✅ ¡PDF optimizado con gráficos gigantes generado!")
                     st.download_button(
                         label="📥 Descargar Reporte Técnico Completo en PDF",
                         data=pdf_bytes,
