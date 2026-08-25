@@ -451,13 +451,13 @@ with tab4:
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(5)
                     
-                    # PÁGINA 2: GRÁFICOS GENERALES GIGANTES
+                    # PÁGINA 2: GRÁFICOS GENERALES (EFECTIVIDAD + BARRAS HORIZONTALES POR ELEMENTO)
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("2. Analisis de Efectividad General y Distribucion"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(2)
                     
-                    # 1. Efectividad Global
+                    # 1. Efectividad Global (% Resultados)
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
                     fig_res = px.pie(df_res, values="Cantidad", names="Resultado", color="Resultado", color_discrete_map=COLOR_MAP_PDF, hole=0.35)
@@ -471,21 +471,42 @@ with tab4:
                     img_res_path = os.path.join(tmpdir, "efectividad_general.png")
                     fig_res.write_image(img_res_path, width=850, height=500, scale=2)
                     
-                    # 2. Distribución por Elementos
+                    # 2. Distribución Global por Elemento (OPCIÓN 2: BARRAS HORIZONTALES LIMPIAS)
                     df_elem = df_pdf["Elemento"].value_counts().reset_index()
                     df_elem.columns = ["Elemento", "Cantidad"]
-                    fig_elem = px.pie(df_elem, values="Cantidad", names="Elemento", color_discrete_sequence=px.colors.qualitative.Pastel, hole=0.35)
-                    fig_elem.update_traces(textposition='auto', textinfo='percent+label+value', textfont_size=15)
-                    fig_elem.update_layout(
-                        title_text="Distribucion Global por Elemento", 
-                        paper_bgcolor="white", 
-                        font=dict(size=14),
-                        legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5)
+                    df_elem = df_elem.sort_values(by="Cantidad", ascending=True)
+
+                    fig_elem = px.bar(
+                        df_elem, 
+                        x="Cantidad", 
+                        y="Elemento", 
+                        orientation='h',
+                        text="Cantidad",
+                        color="Elemento",
+                        color_discrete_sequence=px.colors.qualitative.Pastel
                     )
+
+                    fig_elem.update_traces(
+                        texttemplate='%{text} acciones', 
+                        textposition='outside',
+                        textfont_size=13
+                    )
+
+                    fig_elem.update_layout(
+                        title_text="Distribucion Global por Elemento de Juego", 
+                        paper_bgcolor="white", 
+                        plot_bgcolor="white",
+                        showlegend=False,
+                        xaxis=dict(showgrid=True, gridcolor="#f0f0f0", title="Nº de Acciones"),
+                        yaxis=dict(title=""),
+                        font=dict(size=13),
+                        margin=dict(l=20, r=40, t=40, b=40)
+                    )
+
                     img_elem_path = os.path.join(tmpdir, "distribucion_elementos.png")
-                    fig_elem.write_image(img_elem_path, width=850, height=500, scale=2)
+                    fig_elem.write_image(img_elem_path, width=850, height=450, scale=2)
                     
-                    # Insertar imágenes bien centradas
+                    # Insertar ambas imágenes en la página 2
                     pdf.image(img_res_path, x=20, y=30, w=170)
                     pdf.image(img_elem_path, x=20, y=145, w=170)
                     
@@ -510,9 +531,7 @@ with tab4:
                             color_discrete_map=COLOR_MAP_PDF, 
                             hole=0.35
                         )
-                        # Texto grande y claro dentro y fuera del queso
                         fig_sub.update_traces(textposition='auto', textinfo='percent+label+value', textfont_size=14)
-                        # Leyenda horizontal abajo para liberar el ancho total del dona
                         fig_sub.update_layout(
                             title_text=f"Efectividad: {elem_nombre}", 
                             paper_bgcolor="white", 
@@ -524,18 +543,15 @@ with tab4:
                         img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
                         fig_sub.write_image(img_sub_path, width=750, height=450, scale=2)
                         
-                        # Si no cabe el bloque completo (110mm aprox), nueva página
                         if pdf.get_y() > 170:
                             pdf.add_page()
                         
                         pdf.set_font("Helvetica", 'B', 12)
                         pdf.cell(190, 8, text=limpiar_texto(f"-> ACCION: {elem_nombre.upper()}"), new_x="LMARGIN", new_y="NEXT")
                         
-                        # Gráfico centrado gigante (140mm de ancho)
                         pdf.image(img_sub_path, x=35, y=pdf.get_y(), w=140)
-                        pdf.set_y(pdf.get_y() + 85) # Bajar después de la imagen
+                        pdf.set_y(pdf.get_y() + 85)
                         
-                        # Notas debajo ocupando todo el ancho
                         pdf.set_font("Helvetica", 'B', 10)
                         pdf.cell(190, 6, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
                         
@@ -573,7 +589,7 @@ with tab4:
 
                     pdf_bytes = bytes(pdf.output())
                     
-                    st.success("✅ ¡PDF optimizado con gráficos gigantes generado!")
+                    st.success("✅ ¡PDF optimizado generado con éxito!")
                     st.download_button(
                         label="📥 Descargar Reporte Técnico Completo en PDF",
                         data=pdf_bytes,
