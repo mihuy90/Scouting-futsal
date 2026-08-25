@@ -460,7 +460,7 @@ with tab4:
                     # 1. Efectividad Global (% Resultados) - DONA CON TEXTO DENTRO Y LEYENDA CLARA
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
-                    fig_res = px.pie(
+                    fig_res = px.barh(
                         df_res, 
                         values="Cantidad", 
                         names="Resultado", 
