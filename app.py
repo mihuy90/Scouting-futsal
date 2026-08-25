@@ -451,51 +451,63 @@ with tab4:
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(5)
                     
-                    # PÁGINA 2: GRÁFICOS GENERALES
+                    # PÁGINA 2: GRÁFICOS GENERALES (AMBOS DE BARRAS)
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("2. Analisis de Efectividad General y Distribucion"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(2)
                     
-                    # 1. Efectividad Global (% Resultados)
+                    # 1. Efectividad Global (Ahorra cambiado a Gráfico de Barras Horizontales)
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
-                    fig_res = px.pie(
+                    df_res = df_res.sort_values(by="Cantidad", ascending=True)
+                    
+                    total_res_cnt = df_res["Cantidad"].sum()
+                    df_res["Porcentaje"] = (df_res["Cantidad"] / total_res_cnt * 100).round(1) if total_res_cnt > 0 else 0
+                    df_res["Texto"] = df_res.apply(lambda r: f" {r['Cantidad']} ({r['Porcentaje']}%)", axis=1)
+
+                    max_val_res = df_res["Cantidad"].max() if not df_res.empty else 10
+
+                    fig_res = px.bar(
                         df_res, 
-                        values="Cantidad", 
-                        names="Resultado", 
-                        color="Resultado", 
-                        color_discrete_map=COLOR_MAP_PDF, 
-                        hole=0.4
+                        x="Cantidad", 
+                        y="Resultado", 
+                        orientation='h',
+                        text="Texto",
+                        color="Resultado",
+                        color_discrete_map=COLOR_MAP_PDF
                     )
+
                     fig_res.update_traces(
-                        textposition='inside', 
-                        textinfo='percent+value', 
-                        textfont_size=14
+                        textposition='outside',
+                        textfont_size=12
                     )
+
                     fig_res.update_layout(
                         title_text="Efectividad Global (% Resultados)", 
                         paper_bgcolor="white", 
-                        font=dict(size=13),
-                        legend=dict(
-                            orientation="h", 
-                            yanchor="top", 
-                            y=-0.08, 
-                            xanchor="center", 
-                            x=0.5,
-                            font=dict(size=12)
+                        plot_bgcolor="white",
+                        showlegend=False,
+                        xaxis=dict(
+                            showgrid=True, 
+                            gridcolor="#f0f0f0", 
+                            title="Nº de Acciones",
+                            range=[0, max_val_res * 1.3]
                         ),
-                        margin=dict(l=30, r=30, t=50, b=60)
+                        yaxis=dict(title="", tickfont=dict(size=12)),
+                        font=dict(size=13),
+                        margin=dict(l=150, r=60, t=50, b=50)
                     )
+
                     img_res_path = os.path.join(tmpdir, "efectividad_general.png")
                     fig_res.write_image(img_res_path, width=900, height=480, scale=2)
                     
-                    # 2. Distribución Global por Elemento
+                    # 2. Distribución Global por Elemento (Barras Horizontales)
                     df_elem = df_pdf["Elemento"].value_counts().reset_index()
                     df_elem.columns = ["Elemento", "Cantidad"]
                     df_elem = df_elem.sort_values(by="Cantidad", ascending=True)
 
-                    max_val = df_elem["Cantidad"].max() if not df_elem.empty else 10
+                    max_val_elem = df_elem["Cantidad"].max() if not df_elem.empty else 10
 
                     fig_elem = px.bar(
                         df_elem, 
@@ -522,7 +534,7 @@ with tab4:
                             showgrid=True, 
                             gridcolor="#f0f0f0", 
                             title="Nº de Acciones",
-                            range=[0, max_val * 1.25]
+                            range=[0, max_val_elem * 1.25]
                         ),
                         yaxis=dict(title="", tickfont=dict(size=12)),
                         font=dict(size=13),
@@ -535,7 +547,7 @@ with tab4:
                     pdf.image(img_res_path, x=15, y=30, w=180)
                     pdf.image(img_elem_path, x=15, y=145, w=180)
                     
-                    # PÁGINA 3 EN ADELANTE: DISPOSICIÓN VERTICAL DE ALTO IMPACTO
+                    # PÁGINA 3 EN ADELANTE: DISPOSICIÓN VERTICAL CON BARRAS HORIZONTALES
                     elementos_unicos = [e for e in ELEMENTOS_LISTA if e in df_pdf["Elemento"].unique()]
                     
                     for idx, elem_nombre in enumerate(elementos_unicos):
@@ -558,42 +570,57 @@ with tab4:
                         img_pista_sub_path = os.path.join(tmpdir, f"pista_sub_{idx}.png")
                         fig_pista_elem.write_image(img_pista_sub_path, width=1000, height=480, scale=2)
                         
-                        # 2. Quesito de Efectividad MÁS GRANDE y centrado
+                        # 2. Gráfico de BARRAS de Efectividad específico para este Elemento
                         df_sub_counts = df_sub["Resultado"].value_counts().reset_index()
                         df_sub_counts.columns = ["Resultado", "Cantidad"]
+                        df_sub_counts = df_sub_counts.sort_values(by="Cantidad", ascending=True)
                         
-                        fig_sub = px.pie(
+                        tot_sub = df_sub_counts["Cantidad"].sum()
+                        df_sub_counts["Porcentaje"] = (df_sub_counts["Cantidad"] / tot_sub * 100).round(1) if tot_sub > 0 else 0
+                        df_sub_counts["Texto"] = df_sub_counts.apply(lambda r: f" {r['Cantidad']} ({r['Porcentaje']}%)", axis=1)
+
+                        max_val_sub = df_sub_counts["Cantidad"].max() if not df_sub_counts.empty else 5
+
+                        fig_sub = px.bar(
                             df_sub_counts, 
-                            values="Cantidad", 
-                            names="Resultado", 
-                            color="Resultado", 
-                            color_discrete_map=COLOR_MAP_PDF, 
-                            hole=0.35
+                            x="Cantidad", 
+                            y="Resultado", 
+                            orientation='h',
+                            text="Texto",
+                            color="Resultado",
+                            color_discrete_map=COLOR_MAP_PDF
                         )
-                        fig_sub.update_traces(textposition='auto', textinfo='percent+label+value', textfont_size=14)
+                        fig_sub.update_traces(textposition='outside', textfont_size=12)
                         fig_sub.update_layout(
                             title=dict(text=limpiar_texto(f"Efectividad: {elem_nombre}"), x=0.5, font=dict(size=14)),
                             paper_bgcolor="white", 
+                            plot_bgcolor="white",
+                            showlegend=False,
+                            xaxis=dict(
+                                showgrid=True, 
+                                gridcolor="#f0f0f0", 
+                                title="Nº de Acciones",
+                                range=[0, max_val_sub * 1.35]
+                            ),
+                            yaxis=dict(title="", tickfont=dict(size=12)),
                             font=dict(size=13),
-                            margin=dict(l=20, r=20, t=30, b=40),
-                            legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5, font=dict(size=12))
+                            margin=dict(l=150, r=60, t=40, b=40)
                         )
                         img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
-                        # Subimos resolución a 900x520 px para que al agrandarlo no pierda nitidez
-                        fig_sub.write_image(img_sub_path, width=900, height=520, scale=2)
+                        fig_sub.write_image(img_sub_path, width=900, height=450, scale=2)
                         
-                        # --- RENDERIZADO VERTICAL OPTIMIZADO ---
+                        # --- RENDERIZADO VERTICAL ---
                         
                         # A) Pista (Ancho 170mm, centrada a x=20)
                         y_pista = pdf.get_y()
                         pdf.image(img_pista_sub_path, x=20, y=y_pista, w=170)
                         
-                        # B) Quesito AMPLIADO (Ancho 145mm, centrado a x=32.5)
-                        y_quesito = y_pista + 84
-                        pdf.image(img_sub_path, x=32.5, y=y_quesito, w=145)
+                        # B) Gráfico de Barras de Efectividad Centrado
+                        y_barras = y_pista + 84
+                        pdf.image(img_sub_path, x=20, y=y_barras, w=170)
                         
                         # C) Bloque de Notas al final de la hoja llenando el espacio restante
-                        pdf.set_y(y_quesito + 88)
+                        pdf.set_y(y_barras + 85)
                         pdf.set_font("Helvetica", 'B', 11)
                         pdf.cell(190, 7, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
                         
