@@ -28,16 +28,16 @@ AURA_MAP = {
     "Pérdida / Bloqueado": "rgba(251, 146, 60, 0.3)"
 }
 
-# FORMA DEL ICONO SEGÚN EL ELEMENTO DE JUEGO (Mapeo Táctico)
+# FORMA DEL ICONO SEGÚN EL ELEMENTO (Símbolos válidos de Plotly)
 SYMBOL_ELEMENTO_MAP = {
     "Córner a Favor": "triangle-up",
     "Córner en Contra": "triangle-up",
     "Banda a Favor": "diamond",
     "Banda en Contra": "diamond",
-    "Contraataque": "x-open",
-    "Falta Directa": "target",
-    "Doble Penalti": "target",
-    "Penalti": "target",
+    "Contraataque": "x",
+    "Falta Directa": "circle-open-dot",
+    "Doble Penalti": "circle-open-dot",
+    "Penalti": "circle-open-dot",
     "Juego Continuo / Tiro": "circle"
 }
 
@@ -91,15 +91,14 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
     for l in lineas:
         fig.add_shape(l)
 
-    # 4. CAPA DE PUNTOS TÁCTICOS (Forma = Elemento | Color = Resultado)
+    # 4. CAPA DE PUNTOS TÁCTICOS
     if modo == "calor" and df_puntos is not None and not df_puntos.empty:
         for res in ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"]:
             df_sub = df_puntos[df_puntos["Resultado"] == res]
             if not df_sub.empty:
-                # Asignar símbolos según el elemento individual de cada punto
                 simbolos = [SYMBOL_ELEMENTO_MAP.get(elem, "circle") for elem in df_sub["Elemento"]]
                 
-                # Capa A: Aura de calor transparente
+                # Capa A: Aura translúcida
                 fig.add_trace(go.Scatter(
                     x=df_sub["X"],
                     y=df_sub["Y"],
@@ -239,7 +238,7 @@ with tab2:
             * 🔺 **Triángulo:** Córner
             * 🔷 **Diamante:** Banda
             * ✖️ **Cruz:** Contraataque
-            * 🎯 **Diana:** Falta / Penalti
+            * 🎯 **Diana (círculo con punto):** Falta / Penalti
             * 🟡🔴⚪ **Círculo:** Juego Continuo / Tiro Libre
             """)
         else:
