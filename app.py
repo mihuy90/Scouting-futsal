@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 from fpdf import FPDF
+import tempfile
+import os
 
 st.set_page_config(page_title="Scouting Futsal Pro", layout="wide")
 st.title("⚽ Scouting & Análisis Táctico - Fútbol Sala")
@@ -29,7 +31,7 @@ AURA_MAP = {
     "Pérdida / Bloqueado": "rgba(251, 146, 60, 0.3)"
 }
 
-# FORMA DEL ICONO SEGÚN EL ELEMENTO (Símbolos válidos de Plotly)
+# FORMA DEL ICONO SEGÚN EL ELEMENTO
 SYMBOL_ELEMENTO_MAP = {
     "Córner": "triangle-up",
     "Banda": "diamond",
@@ -347,43 +349,145 @@ with tab3:
     else:
         st.info("No hay datos estadísticos acumulados.")
 
-# PESTAÑA 4: EXPORTAR PDF
+# PESTAÑA 4: EXPORTAR PDF COMPLETO CON TODOS LOS GRÁFICOS Y VARIANTES
 with tab4:
-    st.header("📄 Exportar PDF")
+    st.header("📄 Exportar Informe Completo en PDF")
     if not df_totales.empty:
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Helvetica", 'B', 16)
-        pdf.cell(190, 10, text="Informe Tactico de Scouting - Futbol Sala", new_x="LMARGIN", new_y="NEXT", align='C')
-        pdf.set_font("Helvetica", size=11)
-        pdf.ln(5)
-        pdf.cell(190, 8, text=f"Equipo Analizado: {rival}", new_x="LMARGIN", new_y="NEXT")
-        pdf.cell(190, 8, text=f"Total Acciones Registradas: {len(df_totales)}", new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(8)
+        rival_export = st.selectbox("Seleccionar Rival para Exportar PDF:", df_totales["Rival"].unique(), key="pdf_rival_sel")
         
-        pdf.set_font("Helvetica", 'B', 10)
-        pdf.cell(45, 8, "Elemento", border=1)
-        pdf.cell(40, 8, "Resultado", border=1)
-        pdf.cell(30, 8, "Posicion (X,Y)", border=1)
-        pdf.cell(35, 8, "Jornada", border=1)
-        pdf.ln()
-        
-        pdf.set_font("Helvetica", size=9)
-        for _, row in df_totales.iterrows():
-            pdf.cell(45, 8, str(row['Elemento']), border=1)
-            pdf.cell(40, 8, str(row['Resultado']), border=1)
-            pdf.cell(30, 8, f"{row['X']}m, {row['Y']}m", border=1)
-            pdf.cell(35, 8, str(row['Jornada']), border=1)
-            pdf.ln()
-            
-        pdf_bytes = bytes(pdf.output())
-        
-        st.download_button(
-            label="📥 Descargar Reporte en PDF",
-            data=pdf_bytes,
-            file_name=f"Informe_Scouting_{rival}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+        if st.button("🚀 Generar PDF con Todos los Gráficos", type="primary", use_container_width=True):
+            with st.spinner("Procesando gráficos y maquetando el PDF... Esto puede tardar unos segundos..."):
+                df_pdf = df_totales[df_totales["Rival"] == rival_export]
+                
+                # Crear PDF con FPDF
+                pdf = FPDF()
+                pdf.set_auto_page_break(auto=True, margin=15)
+                
+                # PÁGINA 1: PORTADA Y MAPA DE PISTA
+                pdf.add_page()
+                pdf.set_font("Helvetica", 'B', 18)
+                pdf.cell(190, 10, text="INFORME TÁCTICO Y DE SCOUTING", new_x="LMARGIN", new_y="NEXT", align='C')
+                pdf.set_font("Helvetica", 'B', 14)
+                pdf.cell(190, 8, text=f"Rival Analizado: {rival_export}", new_x="LMARGIN", new_y="NEXT", align='C')
+                pdf.set_font("Helvetica", size=10)
+                pdf.cell(190, 6, text=f"Total de acciones registradas: {len(df_pdf)}", new_x="LMARGIN", new_y="NEXT", align='C')
+                pdf.ln(5)
+                
+                # Guardar e insertar Mapa de Pista Completo
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    fig_pista_pdf = dibujar_pista(df_puntos=df_pdf, modo="calor")
+                    fig_pista_pdf.update_layout(paper_bgcolor="white", plot_bgcolor="#0f172a")
+                    img_pista_path = os.path.join(tmpdir, "mapa_pista.png")
+                    fig_pista_pdf.write_image(img_pista_path, width=900, height=500, scale=2)
+                    
+                    pdf.set_font("Helvetica", 'B', 12)
+                    pdf.cell(190, 8, text="1. Mapa de Calor y Tiro Registrado en Pista", new_x="LMARGIN", new_y="NEXT")
+                    pdf.image(img_pista_path, x=10, w=190)
+                    pdf.ln(5)
+                    
+                    # PÁGINA 2: GRÁFICOS GENERALES Y POR ELEMENTO
+                    pdf.add_page()
+                    pdf.set_font("Helvetica", 'B', 14)
+                    pdf.cell(190, 10, text="2. Análisis de Efectividad General y Distribución", new_x="LMARGIN", new_y="NEXT")
+                    
+                    # 2.1 Gráfico Efectividad General
+                    df_res = df_pdf["Resultado"].value_counts().reset_index()
+                    df_res.columns = ["Resultado", "Cantidad"]
+                    fig_res = px.pie(df_res, values="Cantidad", names="Resultado", color="Resultado", color_discrete_map=COLOR_MAP, hole=0.4)
+                    fig_res.update_traces(textposition='inside', textinfo='percent+label+value')
+                    fig_res.update_layout(title_text="Efectividad Global (% Resultados)", paper_bgcolor="white")
+                    img_res_path = os.path.join(tmpdir, "efectividad_general.png")
+                    fig_res.write_image(img_res_path, width=600, height=400, scale=2)
+                    
+                    # 2.2 Gráfico Distribución por Elemento
+                    df_elem = df_pdf["Elemento"].value_counts().reset_index()
+                    df_elem.columns = ["Elemento", "Cantidad"]
+                    fig_elem = px.pie(df_elem, values="Cantidad", names="Elemento", color_discrete_sequence=px.colors.qualitative.Pastel, hole=0.4)
+                    fig_elem.update_traces(textposition='inside', textinfo='percent+label+value')
+                    fig_elem.update_layout(title_text="Distribución Global por Elemento de Juego", paper_bgcolor="white")
+                    img_elem_path = os.path.join(tmpdir, "distribucion_elementos.png")
+                    fig_elem.write_image(img_elem_path, width=600, height=400, scale=2)
+                    
+                    # Insertar ambos gráficos en paralelo/seguidos
+                    pdf.image(img_res_path, x=10, y=30, w=90)
+                    pdf.image(img_elem_path, x=105, y=30, w=90)
+                    pdf.set_y(100)
+                    
+                    # 3. EFECTIVIDAD DESGLOSADA POR CADA ELEMENTO ESPECÍFICO
+                    pdf.ln(10)
+                    pdf.set_font("Helvetica", 'B', 14)
+                    pdf.cell(190, 10, text="3. Efectividad Desglosada por Tipo de Jugada", new_x="LMARGIN", new_y="NEXT")
+                    
+                    elementos_unicos = df_pdf["Elemento"].unique().tolist()
+                    
+                    y_pos = 120
+                    col_counter = 0
+                    
+                    for idx, elem_nombre in enumerate(elementos_unicos):
+                        df_sub = df_pdf[df_pdf["Elemento"] == elem_nombre]
+                        df_sub_counts = df_sub["Resultado"].value_counts().reset_index()
+                        df_sub_counts.columns = ["Resultado", "Cantidad"]
+                        
+                        fig_sub = px.pie(
+                            df_sub_counts, 
+                            values="Cantidad", 
+                            names="Resultado", 
+                            color="Resultado", 
+                            color_discrete_map=COLOR_MAP, 
+                            hole=0.4
+                        )
+                        fig_sub.update_traces(textposition='inside', textinfo='percent+label+value')
+                        fig_sub.update_layout(title_text=f"Efectividad: {elem_nombre}", paper_bgcolor="white")
+                        
+                        img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
+                        fig_sub.write_image(img_sub_path, width=500, height=350, scale=2)
+                        
+                        # Si no cabe en la página actual, nueva página
+                        if y_pos > 200:
+                            pdf.add_page()
+                            y_pos = 20
+                            col_counter = 0
+                            
+                        x_pos = 10 if (col_counter % 2 == 0) else 105
+                        pdf.image(img_sub_path, x=x_pos, y=y_pos, w=90)
+                        
+                        if col_counter % 2 != 0:
+                            y_pos += 75
+                        col_counter += 1
+
+                    # PÁGINA FINAL: TABLA DETALLADA DE REGISTROS
+                    pdf.add_page()
+                    pdf.set_font("Helvetica", 'B', 14)
+                    pdf.cell(190, 10, text="4. Tabla Registro Detallado de Acciones", new_x="LMARGIN", new_y="NEXT")
+                    pdf.ln(3)
+                    
+                    pdf.set_font("Helvetica", 'B', 10)
+                    pdf.cell(40, 8, "Elemento", border=1)
+                    pdf.cell(40, 8, "Resultado", border=1)
+                    pdf.cell(35, 8, "Posición (X, Y)", border=1)
+                    pdf.cell(35, 8, "Jornada", border=1)
+                    pdf.cell(40, 8, "Zona", border=1)
+                    pdf.ln()
+                    
+                    pdf.set_font("Helvetica", size=9)
+                    df_ordenado_pdf = df_pdf.sort_values(by=["Elemento", "Resultado"], ascending=True)
+                    for _, row in df_ordenado_pdf.iterrows():
+                        pdf.cell(40, 7, str(row['Elemento']), border=1)
+                        pdf.cell(40, 7, str(row['Resultado']), border=1)
+                        pdf.cell(35, 7, f"{row['X']}m, {row['Y']}m", border=1)
+                        pdf.cell(35, 7, str(row['Jornada']), border=1)
+                        pdf.cell(40, 7, str(row['Zona']), border=1)
+                        pdf.ln()
+
+                    pdf_bytes = bytes(pdf.output())
+                    
+                    st.success("✅ ¡PDF completo generado con éxito!")
+                    st.download_button(
+                        label="📥 Descargar Reporte Técnico en PDF",
+                        data=pdf_bytes,
+                        file_name=f"Informe_Completo_Scouting_{rival_export}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
     else:
         st.info("No hay datos para exportar a PDF.")
