@@ -3,7 +3,6 @@ import pandas as pd
 import plotly.graph_objects as go
 from streamlit_plotly_events import plotly_events
 from fpdf import FPDF
-import base64
 
 st.set_page_config(page_title="Scouting Futsal Pro", layout="wide")
 st.title("⚽ Scouting & Análisis Táctico - Fútbol Sala")
@@ -119,7 +118,7 @@ with tab1:
         }])
         
         st.session_state.datos = pd.concat([st.session_state.datos, nueva_accion], ignore_index=True)
-        st.success(f"📌 ¡Acción registrada! {elemento} ({resultado}) en coordenadas X:{click_x}m, Y:{click_y}m")
+        st.success(f"📌 ¡Acción registrada! {elemento} ({resultado}) en X:{click_x}m, Y:{click_y}m")
         st.rerun()
 
 # PESTAÑA 2: MAPA DE CALOR (ACUMULADO)
@@ -158,38 +157,43 @@ with tab3:
         
         st.dataframe(df_rival2, use_container_width=True)
 
-# PESTAÑA 4: PDF
+# PESTAÑA 4: PDF CORREGIDO
 with tab4:
     st.header("📄 Generar PDF")
     if not df.empty:
-        if st.button("📥 Descargar Reporte en PDF"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", 'B', 16)
-            pdf.cell(190, 10, txt="Informe Táctico de Scouting - Fútbol Sala", ln=True, align='C')
-            pdf.set_font("Arial", size=11)
-            pdf.ln(5)
-            pdf.cell(190, 8, txt=f"Equipo Analizado: {rival}", ln=True)
-            pdf.cell(190, 8, txt=f"Total Acciones Registradas: {len(df)}", ln=True)
-            pdf.ln(8)
-            
-            pdf.set_font("Arial", 'B', 10)
-            pdf.cell(45, 8, "Elemento", 1)
-            pdf.cell(40, 8, "Resultado", 1)
-            pdf.cell(30, 8, "Posición (X,Y)", 1)
-            pdf.cell(35, 8, "Jornada", 1)
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(190, 10, txt="Informe Táctico de Scouting - Fútbol Sala", ln=True, align='C')
+        pdf.set_font("Arial", size=11)
+        pdf.ln(5)
+        pdf.cell(190, 8, txt=f"Equipo Analizado: {rival}", ln=True)
+        pdf.cell(190, 8, txt=f"Total Acciones Registradas: {len(df)}", ln=True)
+        pdf.ln(8)
+        
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(45, 8, "Elemento", 1)
+        pdf.cell(40, 8, "Resultado", 1)
+        pdf.cell(30, 8, "Posición (X,Y)", 1)
+        pdf.cell(35, 8, "Jornada", 1)
+        pdf.ln()
+        
+        pdf.set_font("Arial", size=9)
+        for _, row in df.iterrows():
+            pdf.cell(45, 8, str(row['Elemento']), 1)
+            pdf.cell(40, 8, str(row['Resultado']), 1)
+            pdf.cell(30, 8, f"{row['X']}m, {row['Y']}m", 1)
+            pdf.cell(35, 8, str(row['Jornada']), 1)
             pdf.ln()
             
-            pdf.set_font("Arial", size=9)
-            for _, row in df.iterrows():
-                pdf.cell(45, 8, str(row['Elemento']), 1)
-                pdf.cell(40, 8, str(row['Resultado']), 1)
-                pdf.cell(30, 8, f"{row['X']}m, {row['Y']}m", 1)
-                pdf.cell(35, 8, str(row['Jornada']), 1)
-                pdf.ln()
-                
-            pdf_bytes = pdf.output(dest='S').encode('latin-1')
-            b64 = base64.b64encode(pdf_bytes).decode()
-            href = f'<a href="data:application/pdf;base64,{b64}" download="Informe_Scouting_{rival}.pdf" style="font-size:16px; font-weight:bold; color:#2563eb;">👉 Pincha aquí para guardar el PDF</a>'
-            st.markdown(href, unsafe_allow_html=True):16px; font-weight:bold; color:#2563eb;">👉 Pincha aquí para guardar el PDF</a>'
-            st.markdown(href, unsafe_allow_html=True)
+        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        
+        st.download_button(
+            label="📥 Descargar Reporte en PDF",
+            data=pdf_bytes,
+            file_name=f"Informe_Scouting_{rival}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
+    else:
+        st.info("No hay datos para exportar. Añade acciones en el mapa interactivo.")
