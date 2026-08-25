@@ -167,6 +167,41 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("2. Resultado")
 resultado = st.sidebar.radio("Resultado", ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"])
 
+st.sidebar.markdown("---")
+st.sidebar.header("📂 Gestión de Partidos")
+
+# 1. BOTÓN DESCARGAR PARTIDO ACTUAL CSV
+if not st.session_state.datos.empty:
+    csv_data = st.session_state.datos.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        label="💾 Guardar Partido Actual (CSV)",
+        data=csv_data,
+        file_name=f"Partido_{rival}_Jornada_{jornada}.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
+# 2. SUBIR Y FUSIONAR ARCHIVOS CSV ANTERIORES
+archivos_cargados = st.sidebar.file_uploader("📥 Cargar / Fusionar CSVs de Partidos", type=["csv"], accept_multiple_files=True)
+if archivos_cargados:
+    if st.sidebar.button("🔄 Fusionar Datos Cargados", use_container_width=True):
+        nuevos_dfs = []
+        for arch in archivos_cargados:
+            df_temp = pd.read_csv(arch)
+            nuevos_dfs.append(df_temp)
+        if nuevos_dfs:
+            st.session_state.datos = pd.concat([st.session_state.datos] + nuevos_dfs, ignore_index=True).drop_duplicates()
+            st.sidebar.success("¡Datos fusionados con éxito!")
+            st.rerun()
+
+# 3. EMPEZAR UN NUEVO PARTIDO (LIMPIAR PISTA)
+if st.sidebar.button("🗑️ Empezar Nuevo Partido (Limpiar)", type="secondary", use_container_width=True):
+    st.session_state.datos = pd.DataFrame(columns=[
+        "Rival", "Jornada", "Elemento", "Zona", "Resultado", "X", "Y"
+    ])
+    st.sidebar.success("Pista vacía para el nuevo partido.")
+    st.rerun()
+
 # --- PESTAÑAS PRINCIPALES ---
 tab1, tab2, tab3, tab4 = st.tabs(["🎯 Registrador Interactivo", "🔥 Mapa de Precisión / Calor", "📊 Estadísticas Acumuladas", "📄 Exportar PDF"])
 
