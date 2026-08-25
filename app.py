@@ -12,11 +12,29 @@ if "datos" not in st.session_state:
         "Rival", "Jornada", "Elemento", "Zona", "Resultado", "X", "Y"
     ])
 
-# Función para dibujar la pista oficial ajustada (40m x 20m)
+# Función para dibujar la pista oficial con rejilla invisible para detectar clicks en cualquier lado
 def dibujar_pista(df_puntos=None, mostrar_calor=False):
     fig = go.Figure()
     
-    # Capa de Mapa de Calor
+    # Capa de Rejilla Invisible para que CUALQUIER punto del campo capture el clic
+    grid_x = [x * 0.5 for x in range(81)]
+    grid_y = [y * 0.5 for y in range(41)]
+    x_mesh = []
+    y_mesh = []
+    for gx in grid_x:
+        for gy in grid_y:
+            x_mesh.append(gx)
+            y_mesh.append(gy)
+            
+    fig.add_trace(go.Scatter(
+        x=x_mesh, y=y_mesh,
+        mode="markers",
+        marker=dict(size=12, color="rgba(0,0,0,0)"), # Invisible
+        hoverinfo="none",
+        showlegend=False
+    ))
+
+    # Capa de Mapa de Calor (Pestaña 2)
     if mostrar_calor and df_puntos is not None and not df_puntos.empty:
         fig.add_trace(go.Histogram2dContour(
             x=df_puntos["X"],
@@ -28,27 +46,19 @@ def dibujar_pista(df_puntos=None, mostrar_calor=False):
             ncontours=20
         ))
 
-    # Formas oficiales de la pista
+    # Lineas tácticas del campo (40m x 20m)
     shapes = [
-        # Perímetro completo
         dict(type="rect", x0=0, y0=0, x1=40, y1=20, line=dict(color="white", width=3), fillcolor="#1e3a8a" if not mostrar_calor else "rgba(0,0,0,0)"),
-        # Línea central
         dict(type="line", x0=20, y0=0, x1=20, y1=20, line=dict(color="white", width=2)),
-        # Círculo central
         dict(type="circle", x0=17, y0=7, x1=23, y1=13, line=dict(color="white", width=2)),
-        # Punto central
         dict(type="circle", x0=19.8, y0=9.8, x1=20.2, y1=10.2, line=dict(color="white"), fillcolor="white"),
-        # Área 6m Izquierda
         dict(type="rect", x0=0, y0=4, x1=6, y1=16, line=dict(color="white", width=2, dash="dash")),
-        # Área 6m Derecha
         dict(type="rect", x0=34, y0=4, x1=40, y1=16, line=dict(color="white", width=2, dash="dash")),
-        # Portería Izquierda
         dict(type="rect", x0=0, y0=8.5, x1=0.8, y1=11.5, line=dict(color="yellow", width=2), fillcolor="rgba(255,255,0,0.3)"),
-        # Portería Derecha
         dict(type="rect", x0=39.2, y0=8.5, x1=40, y1=11.5, line=dict(color="yellow", width=2), fillcolor="rgba(255,255,0,0.3)"),
     ]
     
-    # Dibujar tiros registrados sobre el campo
+    # Tiros registrados visibles
     if df_puntos is not None and not df_puntos.empty and not mostrar_calor:
         color_map = {
             "Gol": "#22c55e", 
@@ -61,7 +71,7 @@ def dibujar_pista(df_puntos=None, mostrar_calor=False):
             fig.add_trace(go.Scatter(
                 x=df_sub["X"],
                 y=df_sub["Y"],
-                mode="markers+text",
+                mode="markers",
                 name=res,
                 marker=dict(size=14, color=color_map.get(res, "white"), symbol="circle", line=dict(width=1.5, color="black")),
                 hovertext=df_sub["Elemento"]
@@ -74,7 +84,8 @@ def dibujar_pista(df_puntos=None, mostrar_calor=False):
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=0, r=0, t=0, b=0),
-        height=420
+        height=420,
+        clickmode='event+select'
     )
     return fig
 
@@ -105,26 +116,35 @@ tab1, tab2, tab3, tab4 = st.tabs(["🎯 Registrador Interactivo", "🔥 Mapa de 
 
 df_totales = st.session_state.datos
 
-# PESTAÑA 1: REGISTRO FIABLE Y RÁPIDO
+# PESTAÑA 1: REGISTRADOR CON CAPTURA AUTOMÁTICA DE RATÓN
 with tab1:
     st.header(f"🎯 Registro de acciones contra: {rival}")
     
     df_rival = df_totales[df_totales["Rival"] == rival] if not df_totales.empty else pd.DataFrame()
     fig_pista = dibujar_pista(df_puntos=df_rival, mostrar_calor=False)
     
-    st.plotly_chart(fig_pista, use_container_width=True)
+    # Captura de clic nativa mediante Plotly + Streamlit
+    evento_clic = st.plotly_chart(fig_pista, on_select="rerun", selection_mode="points", key="pista_interactiva")
     
-    # PANEL DE UBICACIÓN RÁPIDA (Rango exacto de la pista 40x20)
-    st.markdown("### 📍 Marcar Posición de la Acción en el Campo")
+    # Detectar posición capturada por el ratón al hacer clic en el campo
+    x_capturada = 20.0
+    y_capturada = 10.0
+    
+    if evento_clic and "points" in evento_clic.get("selection", {}) and len(evento_clic["selection"]["points"]) > 0:
+        punto = evento_clic["selection"]["points"][0]
+        x_capturada = round(punto["x"], 1)
+        y_capturada = round(punto["y"], 1)
+
+    st.markdown("### 📍 Posición Detectada del Ratón")
     col_x, col_y, col_btn = st.columns([2, 2, 2])
     
     with col_x:
-        pos_x = st.number_input("Distancia Largo - X (0 a 40m)", min_value=0.0, max_value=40.0, value=20.0, step=0.5)
+        pos_x = st.number_input("Distancia Largo - X", min_value=0.0, max_value=40.0, value=float(x_capturada), step=0.1)
     with col_y:
-        pos_y = st.number_input("Ancho Pista - Y (0 a 20m)", min_value=0.0, max_value=20.0, value=10.0, step=0.5)
+        pos_y = st.number_input("Ancho Pista - Y", min_value=0.0, max_value=20.0, value=float(y_capturada), step=0.1)
         
     with col_btn:
-        st.write("") # Espaciador
+        st.write("")
         st.write("") 
         if st.button("➕ Registrar Acción Ahora", type="primary", use_container_width=True):
             zona_auto = "Centro"
@@ -142,7 +162,7 @@ with tab1:
             }])
             
             st.session_state.datos = pd.concat([st.session_state.datos, nueva_accion], ignore_index=True)
-            st.success(f"📌 Registrado: {elemento} ({resultado}) en X:{pos_x}m, Y:{pos_y}m")
+            st.success(f"📌 ¡Guardado! {elemento} ({resultado}) en X:{pos_x}m, Y:{pos_y}m")
             st.rerun()
 
 # PESTAÑA 2: MAPA DE CALOR
@@ -180,36 +200,36 @@ with tab3:
     else:
         st.info("No hay datos estadísticos acumulados.")
 
-# PESTAÑA 4: PDF
+# PESTAÑA 4: PDF CORREGIDO
 with tab4:
     st.header("📄 Exportar PDF")
     if not df_totales.empty:
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(190, 10, txt="Informe Táctico de Scouting - Fútbol Sala", ln=True, align='C')
-        pdf.set_font("Arial", size=11)
+        pdf.set_font("Helvetica", 'B', 16)
+        pdf.cell(190, 10, text="Informe Tactico de Scouting - Futbol Sala", new_x="LMARGIN", new_y="NEXT", align='C')
+        pdf.set_font("Helvetica", size=11)
         pdf.ln(5)
-        pdf.cell(190, 8, txt=f"Equipo Analizado: {rival}", ln=True)
-        pdf.cell(190, 8, txt=f"Total Acciones Registradas: {len(df_totales)}", ln=True)
+        pdf.cell(190, 8, text=f"Equipo Analizado: {rival}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(190, 8, text=f"Total Acciones Registradas: {len(df_totales)}", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(8)
         
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(45, 8, "Elemento", 1)
-        pdf.cell(40, 8, "Resultado", 1)
-        pdf.cell(30, 8, "Posicion (X,Y)", 1)
-        pdf.cell(35, 8, "Jornada", 1)
+        pdf.set_font("Helvetica", 'B', 10)
+        pdf.cell(45, 8, "Elemento", border=1)
+        pdf.cell(40, 8, "Resultado", border=1)
+        pdf.cell(30, 8, "Posicion (X,Y)", border=1)
+        pdf.cell(35, 8, "Jornada", border=1)
         pdf.ln()
         
-        pdf.set_font("Arial", size=9)
+        pdf.set_font("Helvetica", size=9)
         for _, row in df_totales.iterrows():
-            pdf.cell(45, 8, str(row['Elemento']), 1)
-            pdf.cell(40, 8, str(row['Resultado']), 1)
-            pdf.cell(30, 8, f"{row['X']}m, {row['Y']}m", 1)
-            pdf.cell(35, 8, str(row['Jornada']), 1)
+            pdf.cell(45, 8, str(row['Elemento']), border=1)
+            pdf.cell(40, 8, str(row['Resultado']), border=1)
+            pdf.cell(30, 8, f"{row['X']}m, {row['Y']}m", border=1)
+            pdf.cell(35, 8, str(row['Jornada']), border=1)
             pdf.ln()
             
-        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        pdf_bytes = bytes(pdf.output())
         
         st.download_button(
             label="📥 Descargar Reporte en PDF",
