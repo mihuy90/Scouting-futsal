@@ -14,21 +14,37 @@ if "datos" not in st.session_state:
         "Rival", "Jornada", "Elemento", "Zona", "Resultado"
     ])
 
-# --- BARRA LATERAL: ENTRADA DE DATOS MEDIANTE BOTONES ---
+# --- BARRA LATERAL: REGISTRO RÁPIDO CON BOTONES DIRECTOS ---
 st.sidebar.header("📋 Registro Rápido de Partido")
-rival = st.sidebar.text_input("Equipo Rival", "Rival A")
+rival = st.sidebar.text_input("Equipo Rival", "Poio")
 jornada = st.sidebar.number_input("Número de Partido / Jornada", min_value=1, max_value=30, value=1)
 
-st.sidebar.subheader("Añadir Acción con 1-Clic")
-elemento = st.sidebar.selectbox("Elemento de Juego", [
-    "Córner a Favor", "Córner en Contra", 
-    "Banda a Favor", "Banda en Contra", 
-    "Contraataque", "Falta / Doble Penalti"
-])
+st.sidebar.markdown("---")
+st.sidebar.subheader("1. Selecciona Elemento")
+
+# Lista expandida y visible a 1-clic
+elemento = st.sidebar.radio(
+    "Elemento de Juego:",
+    [
+        "Córner a Favor", 
+        "Córner en Contra", 
+        "Banda a Favor", 
+        "Banda en Contra", 
+        "Contraataque", 
+        "Falta Directa", 
+        "Doble Penalti", 
+        "Penalti"
+    ],
+    index=0
+)
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("2. Zona y Resultado")
 
 zona = st.sidebar.radio("Zona de Finalización", ["Izquierda", "Centro", "Derecha"], horizontal=True)
-resultado = st.sidebar.radio("Resultado", ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"], horizontal=True)
+resultado = st.sidebar.radio("Resultado", ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"])
 
+st.sidebar.markdown("---")
 if st.sidebar.button("➕ Registrar Acción", use_container_width=True):
     nueva_accion = pd.DataFrame([{
         "Rival": rival,
@@ -38,7 +54,7 @@ if st.sidebar.button("➕ Registrar Acción", use_container_width=True):
         "Resultado": resultado
     }])
     st.session_state.datos = pd.concat([st.session_state.datos, nueva_accion], ignore_index=True)
-    st.sidebar.success("¡Acción guardada correctamente!")
+    st.sidebar.success(f"¡{elemento} guardado!")
 
 # --- PANEL PRINCIPAL DE VISUALIZACIÓN ---
 tab1, tab2, tab3 = st.tabs(["📊 Estadísticas Acumuladas", "🔍 Partido a Partido", "📄 Exportar PDF"])
