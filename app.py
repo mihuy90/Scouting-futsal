@@ -6,7 +6,7 @@ from fpdf import FPDF
 st.set_page_config(page_title="Scouting Futsal Pro", layout="wide")
 st.title("⚽ Scouting & Análisis Táctico - Fútbol Sala")
 
-# 1. Base de datos local en la sesión
+# 1. Base de datos local
 if "datos" not in st.session_state:
     st.session_state.datos = pd.DataFrame(columns=[
         "Rival", "Jornada", "Elemento", "Zona", "Resultado", "X", "Y"
@@ -16,7 +16,7 @@ if "datos" not in st.session_state:
 def dibujar_pista(df_puntos=None, mostrar_calor=False):
     fig = go.Figure()
     
-    # Si es mapa de calor, añadimos la capa de calor al fondo
+    # Capa de Mapa de Calor
     if mostrar_calor and df_puntos is not None and not df_puntos.empty:
         fig.add_trace(go.Histogram2dContour(
             x=df_puntos["X"],
@@ -48,7 +48,7 @@ def dibujar_pista(df_puntos=None, mostrar_calor=False):
         dict(type="rect", x0=39.2, y0=8.5, x1=40, y1=11.5, line=dict(color="yellow", width=2), fillcolor="rgba(255,255,0,0.3)"),
     ]
     
-    # Puntos marcados sobre el campo
+    # Dibujar tiros registrados sobre el campo
     if df_puntos is not None and not df_puntos.empty and not mostrar_calor:
         color_map = {
             "Gol": "#22c55e", 
@@ -61,7 +61,7 @@ def dibujar_pista(df_puntos=None, mostrar_calor=False):
             fig.add_trace(go.Scatter(
                 x=df_sub["X"],
                 y=df_sub["Y"],
-                mode="markers",
+                mode="markers+text",
                 name=res,
                 marker=dict(size=14, color=color_map.get(res, "white"), symbol="circle", line=dict(width=1.5, color="black")),
                 hovertext=df_sub["Elemento"]
@@ -74,8 +74,7 @@ def dibujar_pista(df_puntos=None, mostrar_calor=False):
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=0, r=0, t=0, b=0),
-        height=420,
-        clickmode='event+select'
+        height=420
     )
     return fig
 
@@ -101,48 +100,50 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("2. Resultado")
 resultado = st.sidebar.radio("Resultado", ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"])
 
-st.sidebar.info("💡 **Instrucción:** Elige el elemento y el resultado a la izquierda. En el campo, **haz clic con el ratón** en la zona exacta del tiro y luego pulsa el botón **Guardar Clic**.")
-
 # --- PESTAÑAS PRINCIPALES ---
 tab1, tab2, tab3, tab4 = st.tabs(["🎯 Registrador Interactivo", "🔥 Mapa de Calor", "📊 Estadísticas Acumuladas", "📄 Exportar PDF"])
 
 df_totales = st.session_state.datos
 
-# PESTAÑA 1: REGISTRADOR CON CLIC NATIVO
+# PESTAÑA 1: REGISTRO FIABLE Y RÁPIDO
 with tab1:
-    st.header(f"🎯 Registro de tiros contra: {rival}")
+    st.header(f"🎯 Registro de acciones contra: {rival}")
     
     df_rival = df_totales[df_totales["Rival"] == rival] if not df_totales.empty else pd.DataFrame()
     fig_pista = dibujar_pista(df_puntos=df_rival, mostrar_calor=False)
     
-    # Captura nativa de selección/clic de Streamlit
-    evento_clic = st.plotly_chart(fig_pista, on_select="rerun", selection_mode="points", key="pista_interactiva")
+    st.plotly_chart(fig_pista, use_container_width=True)
     
-    # Procesar la coordenada seleccionada al hacer clic
-    if evento_clic and "points" in evento_clic.get("selection", {}) and len(evento_clic["selection"]["points"]) > 0:
-        punto = evento_clic["selection"]["points"][0]
-        click_x = round(punto["x"], 1)
-        click_y = round(punto["y"], 1)
+    # PANEL DE UBICACIÓN RÁPIDA (Rango exacto de la pista 40x20)
+    st.markdown("### 📍 Marcar Posición de la Acción en el Campo")
+    col_x, col_y, col_btn = st.columns([2, 2, 2])
+    
+    with col_x:
+        pos_x = st.number_input("Distancia Largo - X (0 a 40m)", min_value=0.0, max_value=40.0, value=20.0, step=0.5)
+    with col_y:
+        pos_y = st.number_input("Ancho Pista - Y (0 a 20m)", min_value=0.0, max_value=20.0, value=10.0, step=0.5)
         
-        zona_auto = "Centro"
-        if click_y < 6.5: zona_auto = "Derecha"
-        elif click_y > 13.5: zona_auto = "Izquierda"
-        
-        col_btn1, col_btn2 = st.columns([1, 4])
-        with col_btn1:
-            if st.button("✅ Registrar tiro en este punto", type="primary"):
-                nueva_accion = pd.DataFrame([{
-                    "Rival": rival,
-                    "Jornada": f"Partido {jornada}",
-                    "Elemento": elemento,
-                    "Zona": zona_auto,
-                    "Resultado": resultado,
-                    "X": click_x,
-                    "Y": click_y
-                }])
-                st.session_state.datos = pd.concat([st.session_state.datos, nueva_accion], ignore_index=True)
-                st.success(f"📌 Registrado: {elemento} ({resultado}) en X:{click_x}m, Y:{click_y}m")
-                st.rerun()
+    with col_btn:
+        st.write("") # Espaciador
+        st.write("") 
+        if st.button("➕ Registrar Acción Ahora", type="primary", use_container_width=True):
+            zona_auto = "Centro"
+            if pos_y < 6.5: zona_auto = "Derecha"
+            elif pos_y > 13.5: zona_auto = "Izquierda"
+            
+            nueva_accion = pd.DataFrame([{
+                "Rival": rival,
+                "Jornada": f"Partido {jornada}",
+                "Elemento": elemento,
+                "Zona": zona_auto,
+                "Resultado": resultado,
+                "X": pos_x,
+                "Y": pos_y
+            }])
+            
+            st.session_state.datos = pd.concat([st.session_state.datos, nueva_accion], ignore_index=True)
+            st.success(f"📌 Registrado: {elemento} ({resultado}) en X:{pos_x}m, Y:{pos_y}m")
+            st.rerun()
 
 # PESTAÑA 2: MAPA DE CALOR
 with tab2:
@@ -157,7 +158,7 @@ with tab2:
         else:
             st.warning("No hay datos para este rival.")
     else:
-        st.info("Aún no has registrado tiros.")
+        st.info("Aún no has registrado ningún tiro.")
 
 # PESTAÑA 3: ESTADÍSTICAS
 with tab3:
@@ -174,6 +175,7 @@ with tab3:
         efectividad = round((tot_remates / len(df_rival2)) * 100, 1) if len(df_rival2) > 0 else 0
         c3.metric("% Efectividad Tiro", f"{efectividad}%")
         
+        st.markdown("### Tabla detallada de acciones")
         st.dataframe(df_rival2, use_container_width=True)
     else:
         st.info("No hay datos estadísticos acumulados.")
