@@ -31,10 +31,8 @@ AURA_MAP = {
 
 # FORMA DEL ICONO SEGÚN EL ELEMENTO (Símbolos válidos de Plotly)
 SYMBOL_ELEMENTO_MAP = {
-    "Córner a Favor": "triangle-up",
-    "Córner en Contra": "triangle-up",
-    "Banda a Favor": "diamond",
-    "Banda en Contra": "diamond",
+    "Córner": "triangle-up",
+    "Banda": "diamond",
     "Contraataque": "x",
     "Falta Directa": "circle-open-dot",
     "Doble Penalti": "circle-open-dot",
@@ -152,10 +150,13 @@ st.sidebar.subheader("1. Elemento de Juego")
 elemento = st.sidebar.radio(
     "Elemento:",
     [
-        "Córner a Favor", "Córner en Contra", 
-        "Banda a Favor", "Banda en Contra", 
-        "Contraataque", "Falta Directa", 
-        "Doble Penalti", "Penalti", "Juego Continuo / Tiro"
+        "Córner", 
+        "Banda", 
+        "Contraataque", 
+        "Falta Directa", 
+        "Doble Penalti", 
+        "Penalti", 
+        "Juego Continuo / Tiro"
     ],
     index=0
 )
@@ -254,7 +255,7 @@ with tab3:
         rival_sel2 = st.selectbox("Seleccionar Rival para Análisis:", df_totales["Rival"].unique(), key="acum_rival")
         df_rival2 = df_totales[df_totales["Rival"] == rival_sel2]
         
-        # MÉTICAS TOP
+        # MÉTRICAS TOP
         c1, c2, c3, c4 = st.columns(4)
         total_acc = len(df_rival2)
         goles_cnt = len(df_rival2[df_rival2["Resultado"] == "Gol"])
@@ -270,12 +271,14 @@ with tab3:
         
         st.markdown("---")
         
-        # GRÁFICOS CIRCULARES
+        # GRÁFICOS CIRCULARES SIMÉTRICOS
         col_pie1, col_pie2 = st.columns(2)
         
         # IZQUIERDA: EFECTIVIDAD GLOBAL
         with col_pie1:
             st.subheader("🎯 % Efectividad General")
+            st.markdown("&nbsp;") # Espaciador para alinear perfectamente con el selectbox de la derecha
+            
             df_res_counts = df_rival2["Resultado"].value_counts().reset_index()
             df_res_counts.columns = ["Resultado", "Cantidad"]
             
@@ -291,7 +294,7 @@ with tab3:
             fig_pie_res.update_layout(showlegend=False, margin=dict(t=20, b=20, l=10, r=10))
             st.plotly_chart(fig_pie_res, use_container_width=True)
             
-        # DERECHA: EFECTIVIDAD POR ELEMENTO ESPECÍFICO (CON SELECTOR)
+        # DERECHA: EFECTIVIDAD POR ELEMENTO ESPECÍFICO
         with col_pie2:
             st.subheader("🔍 Analizar Elemento Específico")
             elementos_disponibles_rival = ["Todos los Elementos"] + df_rival2["Elemento"].unique().tolist()
