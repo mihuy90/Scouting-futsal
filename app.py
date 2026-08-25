@@ -248,7 +248,7 @@ with tab2:
     else:
         st.info("Aún no has registrado ningún tiro.")
 
-# PESTAÑA 3: ESTADÍSTICAS AVANZADAS Y GRÁFICOS CIRCULARES
+# PESTAÑA 3: ESTADÍSTICAS AVANZADAS Y GRÁFICOS CIRCULARES SIMÉTRICOS
 with tab3:
     st.header("📊 Estadísticas Acumuladas & Efectividad")
     if not df_totales.empty:
@@ -271,15 +271,20 @@ with tab3:
         
         st.markdown("---")
         
-        # GRÁFICOS CIRCULARES SIMÉTRICOS
+        # COLUMNAS SIMÉTRICAS
         col_pie1, col_pie2 = st.columns(2)
         
-        # IZQUIERDA: EFECTIVIDAD GLOBAL
+        # IZQUIERDA: EFECTIVIDAD GENERAL (CON DESPLEGABLE DE FILTRO DE JORNADA)
         with col_pie1:
             st.subheader("🎯 % Efectividad General")
-            st.markdown("&nbsp;") # Espaciador para alinear perfectamente con el selectbox de la derecha
+            jornadas_disponibles = ["Todas las Jornadas"] + sorted(df_rival2["Jornada"].unique().tolist())
+            jornada_sel_pie = st.selectbox("Filtrar por Jornada / Partido:", jornadas_disponibles, key="jornada_pie_izq")
             
-            df_res_counts = df_rival2["Resultado"].value_counts().reset_index()
+            df_izq = df_rival2.copy()
+            if jornada_sel_pie != "Todas las Jornadas":
+                df_izq = df_izq[df_izq["Jornada"] == jornada_sel_pie]
+                
+            df_res_counts = df_izq["Resultado"].value_counts().reset_index()
             df_res_counts.columns = ["Resultado", "Cantidad"]
             
             fig_pie_res = px.pie(
@@ -291,10 +296,10 @@ with tab3:
                 hole=0.45
             )
             fig_pie_res.update_traces(textposition='inside', textinfo='percent+label+value')
-            fig_pie_res.update_layout(showlegend=False, margin=dict(t=20, b=20, l=10, r=10))
+            fig_pie_res.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
             st.plotly_chart(fig_pie_res, use_container_width=True)
             
-        # DERECHA: EFECTIVIDAD POR ELEMENTO ESPECÍFICO
+        # DERECHA: ANALIZAR ELEMENTO ESPECÍFICO (CON DESPLEGABLE DE ELEMENTO)
         with col_pie2:
             st.subheader("🔍 Analizar Elemento Específico")
             elementos_disponibles_rival = ["Todos los Elementos"] + df_rival2["Elemento"].unique().tolist()
@@ -312,7 +317,7 @@ with tab3:
                     hole=0.45
                 )
                 fig_pie_elem.update_traces(textposition='inside', textinfo='percent+label+value')
-                fig_pie_elem.update_layout(showlegend=False, margin=dict(t=20, b=20, l=10, r=10))
+                fig_pie_elem.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
                 st.plotly_chart(fig_pie_elem, use_container_width=True)
             else:
                 df_sub_elem = df_rival2[df_rival2["Elemento"] == elem_filtrado_pie]
@@ -328,7 +333,7 @@ with tab3:
                     hole=0.45
                 )
                 fig_pie_elem.update_traces(textposition='inside', textinfo='percent+label+value')
-                fig_pie_elem.update_layout(showlegend=False, margin=dict(t=20, b=20, l=10, r=10))
+                fig_pie_elem.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
                 st.plotly_chart(fig_pie_elem, use_container_width=True)
 
         st.markdown("---")
