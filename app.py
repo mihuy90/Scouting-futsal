@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 from fpdf import FPDF
 
 st.set_page_config(page_title="Scouting Futsal Pro", layout="wide")
@@ -246,23 +247,74 @@ with tab2:
     else:
         st.info("Aún no has registrado ningún tiro.")
 
-# PESTAÑA 3: ESTADÍSTICAS ACUMULADAS
+# PESTAÑA 3: ESTADÍSTICAS AVANZADAS Y GRÁFICOS CIRCULARES
 with tab3:
-    st.header("📊 Estadísticas Acumuladas")
+    st.header("📊 Estadísticas Acumuladas & Efectividad")
     if not df_totales.empty:
-        rival_sel2 = st.selectbox("Seleccionar Rival:", df_totales["Rival"].unique(), key="acum_rival")
+        rival_sel2 = st.selectbox("Seleccionar Rival para Análisis:", df_totales["Rival"].unique(), key="acum_rival")
         df_rival2 = df_totales[df_totales["Rival"] == rival_sel2]
         
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total Acciones", len(df_rival2))
-        c2.metric("Goles", len(df_rival2[df_rival2["Resultado"] == "Gol"]))
+        # MÉTICAS TOP
+        c1, c2, c3, c4 = st.columns(4)
+        total_acc = len(df_rival2)
+        goles_cnt = len(df_rival2[df_rival2["Resultado"] == "Gol"])
+        puerta_cnt = len(df_rival2[df_rival2["Resultado"] == "Remate a Puerta"])
         
-        tot_remates = len(df_rival2[df_rival2["Resultado"].isin(["Gol", "Remate a Puerta"])])
-        efectividad = round((tot_remates / len(df_rival2)) * 100, 1) if len(df_rival2) > 0 else 0
-        c3.metric("% Efectividad Tiro", f"{efectividad}%")
+        efectividad_gol = round((goles_cnt / total_acc) * 100, 1) if total_acc > 0 else 0
+        efectividad_puerta = round(((goles_cnt + puerta_cnt) / total_acc) * 100, 1) if total_acc > 0 else 0
         
-        st.markdown("### Tabla detallada de acciones")
-        st.dataframe(df_rival2, use_container_width=True)
+        c1.metric("Total Acciones", total_acc)
+        c2.metric("Goles Convertidos", goles_cnt, f"{efectividad_gol}% del total")
+        c3.metric("Tiros Entre Palos", goles_cnt + puerta_cnt, f"{efectividad_puerta}% del total")
+        c4.metric("% Remate a Puerta", f"{efectividad_puerta}%")
+        
+        st.markdown("---")
+        
+        # GRÁFICOS CIRCULARES (DONUT CHARTS)
+        col_pie1, col_pie2 = st.columns(2)
+        
+        with col_pie1:
+            st.subheader("🎯 % Efectividad por Resultado")
+            df_res_counts = df_rival2["Resultado"].value_counts().reset_index()
+            df_res_counts.columns = ["Resultado", "Cantidad"]
+            
+            fig_pie_res = px.pie(
+                df_res_counts, 
+                values="Cantidad", 
+                names="Resultado",
+                color="Resultado",
+                color_discrete_map=COLOR_MAP,
+                hole=0.45
+            )
+            fig_pie_res.update_traces(textposition='inside', textinfo='percent+label+value')
+            fig_pie_res.update_layout(showlegend=False, margin=dict(t=20, b=20, l=10, r=10))
+            st.plotly_chart(fig_pie_res, use_container_width=True)
+            
+        with col_pie2:
+            st.subheader("📌 Distribución por Elemento de Juego")
+            df_elem_counts = df_rival2["Elemento"].value_counts().reset_index()
+            df_elem_counts.columns = ["Elemento", "Cantidad"]
+            
+            fig_pie_elem = px.pie(
+                df_elem_counts, 
+                values="Cantidad", 
+                names="Elemento",
+                color_discrete_sequence=px.colors.qualitative.Pastel,
+                hole=0.45
+            )
+            fig_pie_elem.update_traces(textposition='inside', textinfo='percent+label+value')
+            fig_pie_elem.update_layout(showlegend=False, margin=dict(t=20, b=20, l=10, r=10))
+            st.plotly_chart(fig_pie_elem, use_container_width=True)
+
+        st.markdown("---")
+        
+        # TABLA DE REGISTROS ORDENADA POR ACCIONES
+        st.subheader("📋 Registro Detallado (Ordenado por Frecuencia de Acción)")
+        
+        # Ordenamos las acciones del partido o jornada
+        df_ordenado = df_rival2.sort_values(by=["Elemento", "Resultado"], ascending=True)
+        st.dataframe(df_ordenado, use_container_width=True)
+        
     else:
         st.info("No hay datos estadísticos acumulados.")
 
