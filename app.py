@@ -12,7 +12,7 @@ if "datos" not in st.session_state:
         "Rival", "Jornada", "Elemento", "Zona", "Resultado", "X", "Y"
     ])
 
-# DICCIONARIO DE COLORES Y ESTILOS
+# DICCIONARIO DE COLORES SEGÚN RESULTADO
 COLOR_MAP = {
     "Gol": "#ef4444",               # Rojo vivo
     "Remate a Puerta": "#facc15",    # Amarillo potente
@@ -20,7 +20,7 @@ COLOR_MAP = {
     "Pérdida / Bloqueado": "#fb923c" # Naranja brillante
 }
 
-# Colores con transparencia para el aura/halo de calor
+# Aura / Halo translúcido
 AURA_MAP = {
     "Gol": "rgba(239, 68, 68, 0.35)",
     "Remate a Puerta": "rgba(250, 204, 21, 0.35)",
@@ -28,16 +28,22 @@ AURA_MAP = {
     "Pérdida / Bloqueado": "rgba(251, 146, 60, 0.3)"
 }
 
-SYMBOL_MAP = {
-    "Gol": "star",
-    "Remate a Puerta": "circle",
-    "Remate Fuera": "circle",
-    "Pérdida / Bloqueado": "x"
+# FORMA DEL ICONO SEGÚN EL ELEMENTO DE JUEGO (Mapeo Táctico)
+SYMBOL_ELEMENTO_MAP = {
+    "Córner a Favor": "triangle-up",
+    "Córner en Contra": "triangle-up",
+    "Banda a Favor": "diamond",
+    "Banda en Contra": "diamond",
+    "Contraataque": "x-open",
+    "Falta Directa": "target",
+    "Doble Penalti": "target",
+    "Penalti": "target",
+    "Juego Continuo / Tiro": "circle"
 }
 
-# Tamaños ajustados (un poco más pequeños y estilizados)
+# Tamaños equilibrados
 SIZE_MAP = {
-    "Gol": 16,
+    "Gol": 15,
     "Remate a Puerta": 13,
     "Remate Fuera": 11,
     "Pérdida / Bloqueado": 11
@@ -85,18 +91,21 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
     for l in lineas:
         fig.add_shape(l)
 
-    # 4. CAPA DE PUNTOS TÁCTICOS CON AURA (Solo si no es modo limpio)
+    # 4. CAPA DE PUNTOS TÁCTICOS (Forma = Elemento | Color = Resultado)
     if modo == "calor" and df_puntos is not None and not df_puntos.empty:
         for res in ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"]:
             df_sub = df_puntos[df_puntos["Resultado"] == res]
             if not df_sub.empty:
-                # Capa A: Aura de calor alrededor del punto (más grande y difusa)
+                # Asignar símbolos según el elemento individual de cada punto
+                simbolos = [SYMBOL_ELEMENTO_MAP.get(elem, "circle") for elem in df_sub["Elemento"]]
+                
+                # Capa A: Aura de calor transparente
                 fig.add_trace(go.Scatter(
                     x=df_sub["X"],
                     y=df_sub["Y"],
                     mode="markers",
                     marker=dict(
-                        size=SIZE_MAP.get(res, 12) * 2.4, # Halo expansivo
+                        size=SIZE_MAP.get(res, 12) * 2.3,
                         color=AURA_MAP.get(res, "rgba(255,255,255,0.2)"),
                         symbol="circle"
                     ),
@@ -104,7 +113,7 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
                     showlegend=False
                 ))
 
-                # Capa B: Punto preciso central
+                # Capa B: Punto / Icono táctico preciso
                 fig.add_trace(go.Scatter(
                     x=df_sub["X"],
                     y=df_sub["Y"],
@@ -113,10 +122,10 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
                     marker=dict(
                         size=SIZE_MAP.get(res, 12),
                         color=COLOR_MAP.get(res, "#ffffff"),
-                        symbol=SYMBOL_MAP.get(res, "circle"),
+                        symbol=simbolos,
                         line=dict(width=1.5, color="black")
                     ),
-                    text=[f"{row['Elemento']} ({row['Jornada']})" for _, row in df_sub.iterrows()],
+                    text=[f"{row['Elemento']} | {row['Resultado']} ({row['Jornada']})" for _, row in df_sub.iterrows()],
                     hoverinfo="text+x+y"
                 ))
 
@@ -160,12 +169,11 @@ tab1, tab2, tab3, tab4 = st.tabs(["🎯 Registrador Interactivo", "🔥 Mapa de 
 
 df_totales = st.session_state.datos
 
-# PESTAÑA 1: REGISTRADOR LIMPIO (SIN PUNTOS PREVIOS)
+# PESTAÑA 1: REGISTRADOR LIMPIO
 with tab1:
     st.header(f"🎯 Registro de acciones contra: {rival}")
     
     fig_pista = dibujar_pista(modo="limpio")
-    
     evento_clic = st.plotly_chart(fig_pista, on_select="rerun", selection_mode="points", key="pista_interactiva")
     
     x_capturada = 20.0
@@ -206,22 +214,36 @@ with tab1:
             st.success(f"📌 ¡Guardado! {elemento} ({resultado}) en X:{pos_x}m, Y:{pos_y}m")
             st.rerun()
 
-# PESTAÑA 2: MAPA DE CALOR Y PRECISIÓN CON AURA
+# PESTAÑA 2: MAPA DE CALOR CON ICONOS SEGÚN ELEMENTO
 with tab2:
-    st.header("🔥 Mapa de Calor y Precisión de Tiros")
+    st.header("🔥 Mapa de Calor y Origen del Golpeo")
     if not df_totales.empty:
-        rivales_disponibles = df_totales["Rival"].unique().tolist()
-        rival_sel = st.selectbox("Seleccionar Rival para visualizar:", rivales_disponibles, key="mapa_rival")
+        col_riv, col_filt = st.columns([2, 2])
+        with col_riv:
+            rivales_disponibles = df_totales["Rival"].unique().tolist()
+            rival_sel = st.selectbox("Seleccionar Rival:", rivales_disponibles, key="mapa_rival")
+        with col_filt:
+            elementos_disp = ["Todos"] + df_totales["Elemento"].unique().tolist()
+            filtro_elem = st.selectbox("Filtrar por Elemento de Juego:", elementos_disp, key="filtro_elem")
             
         df_mapa = df_totales[df_totales["Rival"] == rival_sel]
+        if filtro_elem != "Todos":
+            df_mapa = df_mapa[df_mapa["Elemento"] == filtro_elem]
         
         if not df_mapa.empty:
             fig_calor = dibujar_pista(df_puntos=df_mapa, modo="calor")
             st.plotly_chart(fig_calor, use_container_width=True)
             
-            st.info("🔴 **Estrella Roja** = Gol | 🟡 **Círculo Amarillo** = Remate a Puerta | ⚪ **Círculo Blanco** = Remate Fuera | 🟠 **X Naranja** = Pérdida / Bloqueado")
+            st.markdown("""
+            **Leyenda de Formas (Origen de la acción):**
+            * 🔺 **Triángulo:** Córner
+            * 🔷 **Diamante:** Banda
+            * ✖️ **Cruz:** Contraataque
+            * 🎯 **Diana:** Falta / Penalti
+            * 🟡🔴⚪ **Círculo:** Juego Continuo / Tiro Libre
+            """)
         else:
-            st.warning("No hay datos registrados para este rival.")
+            st.warning("No hay datos para este filtro.")
     else:
         st.info("Aún no has registrado ningún tiro.")
 
