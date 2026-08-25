@@ -1,4 +1,4 @@
 streamlit
 pandas
-bokeh
+plotly
 fpdf2
