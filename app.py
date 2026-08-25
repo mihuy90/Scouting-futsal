@@ -556,9 +556,9 @@ with tab4:
                             showlegend=False
                         )
                         img_pista_sub_path = os.path.join(tmpdir, f"pista_sub_{idx}.png")
-                        fig_pista_elem.write_image(img_pista_sub_path, width=1000, height=500, scale=2)
+                        fig_pista_elem.write_image(img_pista_sub_path, width=1000, height=480, scale=2)
                         
-                        # 2. Quesito de Efectividad Centrado
+                        # 2. Quesito de Efectividad MÁS GRANDE y centrado
                         df_sub_counts = df_sub["Resultado"].value_counts().reset_index()
                         df_sub_counts.columns = ["Resultado", "Cantidad"]
                         
@@ -570,28 +570,30 @@ with tab4:
                             color_discrete_map=COLOR_MAP_PDF, 
                             hole=0.35
                         )
-                        fig_sub.update_traces(textposition='auto', textinfo='percent+label+value', textfont_size=13)
+                        fig_sub.update_traces(textposition='auto', textinfo='percent+label+value', textfont_size=14)
                         fig_sub.update_layout(
+                            title=dict(text=limpiar_texto(f"Efectividad: {elem_nombre}"), x=0.5, font=dict(size=14)),
                             paper_bgcolor="white", 
-                            font=dict(size=12),
-                            margin=dict(l=20, r=20, t=10, b=30),
-                            legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5)
+                            font=dict(size=13),
+                            margin=dict(l=20, r=20, t=30, b=40),
+                            legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5, font=dict(size=12))
                         )
                         img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
-                        fig_sub.write_image(img_sub_path, width=700, height=400, scale=2)
+                        # Subimos resolución a 900x520 px para que al agrandarlo no pierda nitidez
+                        fig_sub.write_image(img_sub_path, width=900, height=520, scale=2)
                         
-                        # --- RENDERIZADO VERTICAL COMPLETO ---
+                        # --- RENDERIZADO VERTICAL OPTIMIZADO ---
                         
                         # A) Pista (Ancho 170mm, centrada a x=20)
                         y_pista = pdf.get_y()
                         pdf.image(img_pista_sub_path, x=20, y=y_pista, w=170)
                         
-                        # B) Quesito justo debajo (Ancho 120mm, centrado a x=45)
-                        y_quesito = y_pista + 88
-                        pdf.image(img_sub_path, x=45, y=y_quesito, w=120)
+                        # B) Quesito AMPLIADO (Ancho 145mm, centrado a x=32.5)
+                        y_quesito = y_pista + 84
+                        pdf.image(img_sub_path, x=32.5, y=y_quesito, w=145)
                         
-                        # C) Bloque de Notas al final de la hoja ocupando todo el espacio restante
-                        pdf.set_y(y_quesito + 75)
+                        # C) Bloque de Notas al final de la hoja llenando el espacio restante
+                        pdf.set_y(y_quesito + 88)
                         pdf.set_font("Helvetica", 'B', 11)
                         pdf.cell(190, 7, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
                         
