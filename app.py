@@ -422,7 +422,7 @@ with tab4:
         rival_export = st.selectbox("Seleccionar Rival para Exportar PDF:", df_totales["Rival"].unique(), key="pdf_rival_sel")
         
         if st.button("🚀 Generar PDF con Observaciones Tácticas", type="primary", use_container_width=True):
-            with st.spinner("Procesando gráficos y maquetando observaciones en el PDF..."):
+            with st.spinner("Procesando gráficos en alta definición y maquetando PDF..."):
                 df_pdf = df_totales[df_totales["Rival"] == rival_export]
                 obs_rival = st.session_state.observaciones.get(rival_export, {})
                 
@@ -444,36 +444,40 @@ with tab4:
                     fig_pista_pdf = dibujar_pista(df_puntos=df_pdf, modo="calor")
                     fig_pista_pdf.update_layout(paper_bgcolor="white", plot_bgcolor="#0f172a")
                     img_pista_path = os.path.join(tmpdir, "mapa_pista.png")
-                    fig_pista_pdf.write_image(img_pista_path, width=900, height=500, scale=2)
+                    fig_pista_pdf.write_image(img_pista_path, width=1000, height=550, scale=2)
                     
                     pdf.set_font("Helvetica", 'B', 12)
                     pdf.cell(190, 8, text=limpiar_texto("1. Mapa de Calor y Tiro Registrado en Pista"), new_x="LMARGIN", new_y="NEXT")
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(5)
                     
-                    # PÁGINA 2: GRÁFICOS GENERALES (CON COLORES ADAPTADOS A FONDO BLANCO)
+                    # PÁGINA 2: GRÁFICOS GENERALES MÁS GRANDES (UNO DEBAJO DEL OTRO)
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("2. Analisis de Efectividad General y Distribucion"), new_x="LMARGIN", new_y="NEXT")
+                    pdf.ln(2)
                     
+                    # 1. Efectividad Global
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
                     fig_res = px.pie(df_res, values="Cantidad", names="Resultado", color="Resultado", color_discrete_map=COLOR_MAP_PDF, hole=0.4)
-                    fig_res.update_traces(textposition='inside', textinfo='percent+label+value')
-                    fig_res.update_layout(title_text="Efectividad Global (% Resultados)", paper_bgcolor="white")
+                    fig_res.update_traces(textposition='inside', textinfo='percent+label+value', textfont_size=13)
+                    fig_res.update_layout(title_text="Efectividad Global (% Resultados)", paper_bgcolor="white", font=dict(size=12))
                     img_res_path = os.path.join(tmpdir, "efectividad_general.png")
-                    fig_res.write_image(img_res_path, width=600, height=400, scale=2)
+                    fig_res.write_image(img_res_path, width=800, height=450, scale=2)
                     
+                    # 2. Distribución por Elementos
                     df_elem = df_pdf["Elemento"].value_counts().reset_index()
                     df_elem.columns = ["Elemento", "Cantidad"]
                     fig_elem = px.pie(df_elem, values="Cantidad", names="Elemento", color_discrete_sequence=px.colors.qualitative.Pastel, hole=0.4)
-                    fig_elem.update_traces(textposition='inside', textinfo='percent+label+value')
-                    fig_elem.update_layout(title_text="Distribucion Global por Elemento", paper_bgcolor="white")
+                    fig_elem.update_traces(textposition='inside', textinfo='percent+label+value', textfont_size=13)
+                    fig_elem.update_layout(title_text="Distribucion Global por Elemento", paper_bgcolor="white", font=dict(size=12))
                     img_elem_path = os.path.join(tmpdir, "distribucion_elementos.png")
-                    fig_elem.write_image(img_elem_path, width=600, height=400, scale=2)
+                    fig_elem.write_image(img_elem_path, width=800, height=450, scale=2)
                     
-                    pdf.image(img_res_path, x=10, y=30, w=90)
-                    pdf.image(img_elem_path, x=105, y=30, w=90)
+                    # Insertar imágenes más grandes en la página 2
+                    pdf.image(img_res_path, x=30, y=30, w=150)
+                    pdf.image(img_elem_path, x=30, y=150, w=150)
                     
                     # PÁGINA 3 EN ADELANTE: EFECTIVIDAD + OBSERVACIONES DESGLOSADAS
                     pdf.add_page()
@@ -496,35 +500,39 @@ with tab4:
                             color_discrete_map=COLOR_MAP_PDF, 
                             hole=0.4
                         )
-                        fig_sub.update_traces(textposition='inside', textinfo='percent+label+value')
-                        fig_sub.update_layout(title_text=f"Efectividad: {elem_nombre}", paper_bgcolor="white")
+                        fig_sub.update_traces(textposition='inside', textinfo='percent+label+value', textfont_size=12)
+                        fig_sub.update_layout(title_text=f"Efectividad: {elem_nombre}", paper_bgcolor="white", font=dict(size=11))
                         
                         img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
-                        fig_sub.write_image(img_sub_path, width=500, height=350, scale=2)
+                        fig_sub.write_image(img_sub_path, width=650, height=450, scale=2)
                         
-                        if pdf.get_y() > 200:
+                        # Comprobar si cabe en la página actual (altura necesaria aprox 80mm)
+                        if pdf.get_y() > 190:
                             pdf.add_page()
                         
                         curr_y = pdf.get_y()
                         pdf.set_font("Helvetica", 'B', 12)
                         pdf.cell(190, 8, text=limpiar_texto(f"-> ACCION: {elem_nombre.upper()}"), new_x="LMARGIN", new_y="NEXT")
                         
-                        pdf.image(img_sub_path, x=10, y=curr_y + 8, w=80)
+                        # Gráfico ampliado a la izquierda (95mm de ancho)
+                        pdf.image(img_sub_path, x=8, y=curr_y + 8, w=95)
                         
-                        pdf.set_xy(95, curr_y + 8)
+                        # Observaciones a la derecha
+                        pdf.set_xy(106, curr_y + 8)
                         pdf.set_font("Helvetica", 'B', 10)
-                        pdf.cell(105, 6, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
+                        pdf.cell(94, 6, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
                         
-                        pdf.set_x(95)
+                        pdf.set_x(106)
                         pdf.set_font("Helvetica", size=9)
                         
                         nota_texto = obs_rival.get(elem_nombre, "").strip()
                         if not nota_texto:
                             nota_texto = "Sin observaciones registradas para este tipo de accion."
                             
-                        pdf.multi_cell(105, 5, text=limpiar_texto(nota_texto), border=1)
+                        pdf.multi_cell(94, 5, text=limpiar_texto(nota_texto), border=1)
                         
-                        pdf.set_y(max(curr_y + 70, pdf.get_y() + 10))
+                        # Posicionar cursor para el siguiente bloque con espacio cómodo
+                        pdf.set_y(max(curr_y + 78, pdf.get_y() + 10))
                         pdf.ln(5)
 
                     # PÁGINA FINAL: TABLA DETALLADA DE REGISTROS
@@ -553,7 +561,7 @@ with tab4:
 
                     pdf_bytes = bytes(pdf.output())
                     
-                    st.success("✅ ¡PDF completo generado con éxito!")
+                    st.success("✅ ¡PDF optimizado generado con éxito!")
                     st.download_button(
                         label="📥 Descargar Reporte Técnico Completo en PDF",
                         data=pdf_bytes,
