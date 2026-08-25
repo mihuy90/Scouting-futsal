@@ -7,19 +7,33 @@ from fpdf import FPDF
 st.set_page_config(page_title="Scouting Futsal Pro", layout="wide")
 st.title("⚽ Scouting & Análisis Táctico - Fútbol Sala")
 
-# Base de datos local
+# 1. Base de datos local en la sesión
 if "datos" not in st.session_state:
     st.session_state.datos = pd.DataFrame(columns=[
         "Rival", "Jornada", "Elemento", "Zona", "Resultado", "X", "Y"
     ])
 
-# Función para dibujar la pista oficial ajustada (40m x 20m)
-def dibujar_pista():
+# Función para dibujar la pista de fútbol sala (40m x 20m)
+def dibujar_pista(df_puntos=None, mostrar_calor=False):
     fig = go.Figure()
     
+    # Capa de Mapa de Calor (Si aplica)
+    if mostrar_calor and df_puntos is not None and not df_puntos.empty:
+        fig.add_trace(go.Histogram2dContour(
+            x=df_puntos["X"],
+            y=df_puntos["Y"],
+            colorscale="Hot",
+            reversescale=True,
+            showscale=True,
+            opacity=0.75,
+            ncontours=15,
+            contours=dict(coloring='heatmap')
+        ))
+
+    # Formas de la pista
     shapes = [
-        # Perímetro completo (Fondo del campo)
-        dict(type="rect", x0=0, y0=0, x1=40, y1=20, line=dict(color="white", width=3), fillcolor="#1e3a8a"),
+        # Perímetro / Fondo del campo
+        dict(type="rect", x0=0, y0=0, x1=40, y1=20, line=dict(color="white", width=3), fillcolor="#1e3a8a" if not mostrar_calor else "rgba(30,58,138,0.3)"),
         # Línea central
         dict(type="line", x0=20, y0=0, x1=20, y1=20, line=dict(color="white", width=2)),
         # Círculo central
@@ -30,12 +44,31 @@ def dibujar_pista():
         dict(type="rect", x0=0, y0=4, x1=6, y1=16, line=dict(color="white", width=2, dash="dash")),
         # Área 6m Derecha
         dict(type="rect", x0=34, y0=4, x1=40, y1=16, line=dict(color="white", width=2, dash="dash")),
-        # Portería Izquierda (dentro del borde para no deformar el lienzo)
+        # Portería Izquierda
         dict(type="rect", x0=0, y0=8.5, x1=0.8, y1=11.5, line=dict(color="yellow", width=2), fillcolor="rgba(255,255,0,0.3)"),
         # Portería Derecha
         dict(type="rect", x0=39.2, y0=8.5, x1=40, y1=11.5, line=dict(color="yellow", width=2), fillcolor="rgba(255,255,0,0.3)"),
     ]
     
+    # Añadir puntos registrados si existen y NO es solo mapa de calor
+    if df_puntos is not None and not df_puntos.empty and not mostrar_calor:
+        color_map = {
+            "Gol": "#22c55e", 
+            "Remate a Puerta": "#3b82f6", 
+            "Remate Fuera": "#f97316", 
+            "Pérdida / Bloqueado": "#ef4444"
+        }
+        for res in df_puntos["Resultado"].unique():
+            df_sub = df_puntos[df_puntos["Resultado"] == res]
+            fig.add_trace(go.Scatter(
+                x=df_sub["X"],
+                y=df_sub["Y"],
+                mode="markers",
+                name=res,
+                marker=dict(size=14, color=color_map.get(res, "white"), symbol="circle", line=dict(width=1.5, color="black")),
+                hovertext=df_sub["Elemento"]
+            ))
+
     fig.update_layout(
         shapes=shapes,
         xaxis=dict(range=[0, 40], showgrid=False, zeroline=False, visible=False, fixedrange=True),
@@ -43,7 +76,8 @@ def dibujar_pista():
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=0, r=0, t=0, b=0),
-        height=420
+        height=420,
+        showlegend=not mostrar_calor
     )
     return fig
 
@@ -69,33 +103,20 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("2. Resultado")
 resultado = st.sidebar.radio("Resultado", ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"])
 
-st.sidebar.info("💡 **Instrucción:** Selecciona el elemento y resultado a la izquierda, luego **HAZ CLIC en el campo** para registrar.")
+st.sidebar.info("💡 **Instrucción:** Elige las opciones de la izquierda y **HAZ CLIC en el campo** para guardar la posición.")
 
 # --- PESTAÑAS PRINCIPALES ---
 tab1, tab2, tab3, tab4 = st.tabs(["🎯 Registrador Interactivo", "🔥 Mapa de Calor", "📊 Estadísticas Acumuladas", "📄 Exportar PDF"])
 
-df = st.session_state.datos
-
-# PESTAÑA 1: REGISTRO CON CLIC DIRECTO
+# PESTAÑA 1: REGISTRO INTERACTIVO CON CLIC
 with tab1:
-    st.header("🎯 Haz clic sobre la pista para registrar un tiro")
+    st.header(f"🎯 Registro de tiros contra: {rival}")
     
-    fig_pista = dibujar_pista()
+    # Obtener eventos guardados para el rival actual
+    df_actual = st.session_state.datos
+    df_rival = df_actual[df_actual["Rival"] == rival] if not df_actual.empty else pd.DataFrame()
     
-    # Si hay tiros previos guardados, los mostramos sobre la pista
-    if not df.empty:
-        df_rival = df[df["Rival"] == rival]
-        color_map = {"Gol": "#22c55e", "Remate a Puerta": "#3b82f6", "Remate Fuera": "#f97316", "Pérdida / Bloqueado": "#ef4444"}
-        for res in df_rival["Resultado"].unique():
-            df_sub = df_rival[df_rival["Resultado"] == res]
-            fig_pista.add_trace(go.Scatter(
-                x=df_sub["X"],
-                y=df_sub["Y"],
-                mode="markers",
-                name=res,
-                marker=dict(size=14, color=color_map.get(res, "white"), symbol="circle", line=dict(width=1.5, color="black")),
-                hovertext=df_sub["Elemento"]
-            ))
+    fig_pista = dibujar_pista(df_puntos=df_rival, mostrar_calor=False)
 
     # Capturar el clic del usuario sobre el gráfico
     selected_points = plotly_events(fig_pista, click_event=True, key="pista_clicks")
@@ -104,12 +125,14 @@ with tab1:
         click_x = round(selected_points[0]["x"], 1)
         click_y = round(selected_points[0]["y"], 1)
         
-        # Determinar zona cualitativa automática
+        # Determinar zona cualitativa según coordenada Y
         zona_auto = "Centro"
-        if click_y < 6.5: zona_auto = "Derecha"
-        elif click_y > 13.5: zona_auto = "Izquierda"
+        if click_y < 6.5: 
+            zona_auto = "Derecha"
+        elif click_y > 13.5: 
+            zona_auto = "Izquierda"
         
-        # Guardar en la base de datos
+        # Crear nuevo registro
         nueva_accion = pd.DataFrame([{
             "Rival": rival,
             "Jornada": f"Partido {jornada}",
@@ -120,50 +143,58 @@ with tab1:
             "Y": click_y
         }])
         
+        # Añadir al estado global y recargar la app
         st.session_state.datos = pd.concat([st.session_state.datos, nueva_accion], ignore_index=True)
-        st.success(f"📌 ¡Acción registrada! {elemento} ({resultado}) en X:{click_x}m, Y:{click_y}m")
+        st.success(f"✅ Accion guardada: {elemento} ({resultado}) en [{click_x}m, {click_y}m]")
         st.rerun()
 
-# PESTAÑA 2: MAPA DE CALOR (ACUMULADO)
+# PESTAÑA 2: MAPA DE CALOR ACUMULADO
 with tab2:
     st.header("🔥 Mapa de Calor Acumulado")
-    if not df.empty:
-        rival_sel = st.selectbox("Seleccionar Rival para el Mapa", df["Rival"].unique(), key="mapa_rival")
-        df_mapa = df[df["Rival"] == rival_sel]
+    df_totales = st.session_state.datos
+    
+    if not df_totales.empty:
+        rivales_disponibles = df_totales["Rival"].unique()
+        rival_sel = st.selectbox("Seleccionar Rival para visualizar:", rivales_disponibles, key="mapa_rival")
         
-        fig_calor = dibujar_pista()
-        fig_calor.add_trace(go.Histogram2dContour(
-            x=df_mapa["X"],
-            y=df_mapa["Y"],
-            colorscale="Hot",
-            reversescale=True,
-            showscale=True,
-            opacity=0.75
-        ))
-        st.plotly_chart(fig_calor, use_container_width=True)
+        df_mapa = df_totales[df_totales["Rival"] == rival_sel]
+        
+        if not df_mapa.empty:
+            fig_calor = dibujar_pista(df_puntos=df_mapa, mostrar_calor=True)
+            st.plotly_chart(fig_calor, use_container_width=True)
+        else:
+            st.warning("No hay datos registrados para este rival.")
     else:
-        st.info("Aún no has hecho ningún clic sobre la pista para generar el mapa.")
+        st.info("Aún no se ha registrado ningún tiro. Ve a la pestaña 'Registrador Interactivo' y haz clic en el campo.")
 
 # PESTAÑA 3: ESTADÍSTICAS
 with tab3:
     st.header("📊 Estadísticas Acumuladas")
-    if not df.empty:
-        rival_sel2 = st.selectbox("Seleccionar Rival", df["Rival"].unique(), key="acum_rival")
-        df_rival2 = df[df["Rival"] == rival_sel2]
+    df_totales = st.session_state.datos
+    
+    if not df_totales.empty:
+        rival_sel2 = st.selectbox("Seleccionar Rival:", df_totales["Rival"].unique(), key="acum_rival")
+        df_rival2 = df_totales[df_totales["Rival"] == rival_sel2]
         
         c1, c2, c3 = st.columns(3)
         c1.metric("Total Acciones", len(df_rival2))
         c2.metric("Goles", len(df_rival2[df_rival2["Resultado"] == "Gol"]))
+        
         tot_remates = len(df_rival2[df_rival2["Resultado"].isin(["Gol", "Remate a Puerta"])])
         efectividad = round((tot_remates / len(df_rival2)) * 100, 1) if len(df_rival2) > 0 else 0
         c3.metric("% Efectividad Tiro", f"{efectividad}%")
         
+        st.markdown("### Tabla detallada de acciones")
         st.dataframe(df_rival2, use_container_width=True)
+    else:
+        st.info("No hay datos estadísticos aún.")
 
 # PESTAÑA 4: PDF
 with tab4:
     st.header("📄 Generar PDF")
-    if not df.empty:
+    df_totales = st.session_state.datos
+    
+    if not df_totales.empty:
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", 'B', 16)
@@ -171,18 +202,18 @@ with tab4:
         pdf.set_font("Arial", size=11)
         pdf.ln(5)
         pdf.cell(190, 8, txt=f"Equipo Analizado: {rival}", ln=True)
-        pdf.cell(190, 8, txt=f"Total Acciones Registradas: {len(df)}", ln=True)
+        pdf.cell(190, 8, txt=f"Total Acciones Registradas: {len(df_totales)}", ln=True)
         pdf.ln(8)
         
         pdf.set_font("Arial", 'B', 10)
         pdf.cell(45, 8, "Elemento", 1)
         pdf.cell(40, 8, "Resultado", 1)
-        pdf.cell(30, 8, "Posición (X,Y)", 1)
+        pdf.cell(30, 8, "Posicion (X,Y)", 1)
         pdf.cell(35, 8, "Jornada", 1)
         pdf.ln()
         
         pdf.set_font("Arial", size=9)
-        for _, row in df.iterrows():
+        for _, row in df_totales.iterrows():
             pdf.cell(45, 8, str(row['Elemento']), 1)
             pdf.cell(40, 8, str(row['Resultado']), 1)
             pdf.cell(30, 8, f"{row['X']}m, {row['Y']}m", 1)
@@ -199,4 +230,4 @@ with tab4:
             use_container_width=True
         )
     else:
-        st.info("No hay datos para exportar. Añade acciones en el mapa interactivo.")
+        st.info("No hay datos para exportar a PDF.")
