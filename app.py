@@ -13,34 +13,37 @@ if "datos" not in st.session_state:
         "Rival", "Jornada", "Elemento", "Zona", "Resultado", "X", "Y"
     ])
 
-# Función para dibujar la pista oficial (40m x 20m)
+# Función para dibujar la pista oficial ajustada (40m x 20m)
 def dibujar_pista():
     fig = go.Figure()
     
-    lines = [
-        # Perímetro
-        dict(type="rect", x0=0, y0=0, x1=40, y1=20, line=dict(color="white", width=2)),
+    shapes = [
+        # Perímetro completo (Fondo del campo)
+        dict(type="rect", x0=0, y0=0, x1=40, y1=20, line=dict(color="white", width=3), fillcolor="#1e3a8a"),
         # Línea central
         dict(type="line", x0=20, y0=0, x1=20, y1=20, line=dict(color="white", width=2)),
         # Círculo central
         dict(type="circle", x0=17, y0=7, x1=23, y1=13, line=dict(color="white", width=2)),
+        # Punto central
+        dict(type="circle", x0=19.8, y0=9.8, x1=20.2, y1=10.2, line=dict(color="white"), fillcolor="white"),
         # Área 6m Izquierda
-        dict(type="rect", x0=0, y0=4, x1=6, y1=16, line=dict(color="white", width=1.5, dash="dash")),
+        dict(type="rect", x0=0, y0=4, x1=6, y1=16, line=dict(color="white", width=2, dash="dash")),
         # Área 6m Derecha
-        dict(type="rect", x0=34, y0=4, x1=40, y1=16, line=dict(color="white", width=1.5, dash="dash")),
-        # Porterías
-        dict(type="rect", x0=-1.5, y0=8.5, x1=0, y1=11.5, line=dict(color="yellow", width=3), fillcolor="rgba(255,255,0,0.2)"),
-        dict(type="rect", x0=40, y0=8.5, x1=41.5, y1=11.5, line=dict(color="yellow", width=3), fillcolor="rgba(255,255,0,0.2)"),
+        dict(type="rect", x0=34, y0=4, x1=40, y1=16, line=dict(color="white", width=2, dash="dash")),
+        # Portería Izquierda (dentro del borde para no deformar el lienzo)
+        dict(type="rect", x0=0, y0=8.5, x1=0.8, y1=11.5, line=dict(color="yellow", width=2), fillcolor="rgba(255,255,0,0.3)"),
+        # Portería Derecha
+        dict(type="rect", x0=39.2, y0=8.5, x1=40, y1=11.5, line=dict(color="yellow", width=2), fillcolor="rgba(255,255,0,0.3)"),
     ]
     
     fig.update_layout(
-        shapes=lines,
-        xaxis=dict(range=[-2, 42], showgrid=False, zeroline=False, visible=False),
-        yaxis=dict(range=[-1, 21], showgrid=False, zeroline=False, visible=False, scaleanchor="x", scaleratio=1),
-        plot_bgcolor="#1e3a8a",
+        shapes=shapes,
+        xaxis=dict(range=[0, 40], showgrid=False, zeroline=False, visible=False, fixedrange=True),
+        yaxis=dict(range=[0, 20], showgrid=False, zeroline=False, visible=False, scaleanchor="x", scaleratio=1, fixedrange=True),
+        plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=5, r=5, t=10, b=5),
-        height=450
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=420
     )
     return fig
 
@@ -66,7 +69,7 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("2. Resultado")
 resultado = st.sidebar.radio("Resultado", ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"])
 
-st.sidebar.info("💡 **Instrucción:** Selecciona arriba el elemento y resultado, luego **HAZ CLIC en el campo** para marcar la posición exacta.")
+st.sidebar.info("💡 **Instrucción:** Selecciona el elemento y resultado a la izquierda, luego **HAZ CLIC en el campo** para registrar.")
 
 # --- PESTAÑAS PRINCIPALES ---
 tab1, tab2, tab3, tab4 = st.tabs(["🎯 Registrador Interactivo", "🔥 Mapa de Calor", "📊 Estadísticas Acumuladas", "📄 Exportar PDF"])
@@ -90,7 +93,7 @@ with tab1:
                 y=df_sub["Y"],
                 mode="markers",
                 name=res,
-                marker=dict(size=14, color=color_map.get(res, "white"), symbol="circle", line=dict(width=1, color="black")),
+                marker=dict(size=14, color=color_map.get(res, "white"), symbol="circle", line=dict(width=1.5, color="black")),
                 hovertext=df_sub["Elemento"]
             ))
 
@@ -157,7 +160,7 @@ with tab3:
         
         st.dataframe(df_rival2, use_container_width=True)
 
-# PESTAÑA 4: PDF CORREGIDO
+# PESTAÑA 4: PDF
 with tab4:
     st.header("📄 Generar PDF")
     if not df.empty:
