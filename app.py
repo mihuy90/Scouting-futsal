@@ -5,9 +5,20 @@ import plotly.express as px
 from fpdf import FPDF
 import tempfile
 import os
+import unicodedata
 
 st.set_page_config(page_title="Scouting Futsal Pro", layout="wide")
 st.title("⚽ Scouting & Análisis Táctico - Fútbol Sala")
+
+# Función auxiliar para sanitizar textos y evitar errores de codificación en FPDF
+def limpiar_texto(texto):
+    if not isinstance(texto, str):
+        return str(texto)
+    # Reemplazar caracteres unicode problemáticos por equivalentes ASCII
+    texto = texto.replace("🔹", "-> ").replace("•", "-").replace("—", "-")
+    # Normalizar tildes y caracteres especiales a Latin-1 compatible
+    texto_normalizado = unicodedata.normalize('NFKD', texto).encode('latin-1', 'ignore').decode('latin-1')
+    return texto_normalizado
 
 # 1. Base de datos local de acciones
 if "datos" not in st.session_state:
@@ -17,7 +28,7 @@ if "datos" not in st.session_state:
 
 # 2. Base de datos local de observaciones/notas por rival y elemento
 if "observaciones" not in st.session_state:
-    st.session_state.observaciones = {} # Estrutura: { "Rival": { "Elemento": "Texto de nota..." } }
+    st.session_state.observaciones = {} # Estructura: { "Rival": { "Elemento": "Texto de nota..." } }
 
 # DICCIONARIO DE COLORES SEGÚN RESULTADO
 COLOR_MAP = {
@@ -384,7 +395,7 @@ with tab3:
     else:
         st.info("No hay datos estadísticos acumulados.")
 
-# NUEVA PESTAÑA: OBSERVACIONES TÁCTICAS
+# PESTAÑA OBSERVACIONES TÁCTICAS
 with tab_obs:
     st.header("📝 Observaciones y Anotaciones Tácticas por Acción")
     st.markdown("Escribe tus notas de scouting desglosadas para que salgan perfectamente organizadas en el PDF final.")
@@ -429,11 +440,11 @@ with tab4:
                 # PÁGINA 1: PORTADA Y MAPA DE PISTA
                 pdf.add_page()
                 pdf.set_font("Helvetica", 'B', 18)
-                pdf.cell(190, 10, text="INFORME TÁCTICO Y DE SCOUTING", new_x="LMARGIN", new_y="NEXT", align='C')
+                pdf.cell(190, 10, text=limpiar_texto("INFORME TACTICO Y DE SCOUTING"), new_x="LMARGIN", new_y="NEXT", align='C')
                 pdf.set_font("Helvetica", 'B', 14)
-                pdf.cell(190, 8, text=f"Rival Analizado: {rival_export}", new_x="LMARGIN", new_y="NEXT", align='C')
+                pdf.cell(190, 8, text=limpiar_texto(f"Rival Analizado: {rival_export}"), new_x="LMARGIN", new_y="NEXT", align='C')
                 pdf.set_font("Helvetica", size=10)
-                pdf.cell(190, 6, text=f"Total de acciones registradas: {len(df_pdf)}", new_x="LMARGIN", new_y="NEXT", align='C')
+                pdf.cell(190, 6, text=limpiar_texto(f"Total de acciones registradas: {len(df_pdf)}"), new_x="LMARGIN", new_y="NEXT", align='C')
                 pdf.ln(5)
                 
                 with tempfile.TemporaryDirectory() as tmpdir:
@@ -444,14 +455,14 @@ with tab4:
                     fig_pista_pdf.write_image(img_pista_path, width=900, height=500, scale=2)
                     
                     pdf.set_font("Helvetica", 'B', 12)
-                    pdf.cell(190, 8, text="1. Mapa de Calor y Tiro Registrado en Pista", new_x="LMARGIN", new_y="NEXT")
+                    pdf.cell(190, 8, text=limpiar_texto("1. Mapa de Calor y Tiro Registrado en Pista"), new_x="LMARGIN", new_y="NEXT")
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(5)
                     
                     # PÁGINA 2: GRÁFICOS GENERALES
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
-                    pdf.cell(190, 10, text="2. Análisis de Efectividad General y Distribución", new_x="LMARGIN", new_y="NEXT")
+                    pdf.cell(190, 10, text=limpiar_texto("2. Analisis de Efectividad General y Distribucion"), new_x="LMARGIN", new_y="NEXT")
                     
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
@@ -465,7 +476,7 @@ with tab4:
                     df_elem.columns = ["Elemento", "Cantidad"]
                     fig_elem = px.pie(df_elem, values="Cantidad", names="Elemento", color_discrete_sequence=px.colors.qualitative.Pastel, hole=0.4)
                     fig_elem.update_traces(textposition='inside', textinfo='percent+label+value')
-                    fig_elem.update_layout(title_text="Distribución Global por Elemento", paper_bgcolor="white")
+                    fig_elem.update_layout(title_text="Distribucion Global por Elemento", paper_bgcolor="white")
                     img_elem_path = os.path.join(tmpdir, "distribucion_elementos.png")
                     fig_elem.write_image(img_elem_path, width=600, height=400, scale=2)
                     
@@ -475,7 +486,7 @@ with tab4:
                     # PÁGINA 3 EN ADELANTE: EFECTIVIDAD + OBSERVACIONES DESGLOSADAS
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
-                    pdf.cell(190, 10, text="3. Análisis Táctico y Observaciones por Jugada", new_x="LMARGIN", new_y="NEXT")
+                    pdf.cell(190, 10, text=limpiar_texto("3. Analisis Tactico y Observaciones por Jugada"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(5)
                     
                     elementos_unicos = [e for e in ELEMENTOS_LISTA if e in df_pdf["Elemento"].unique()]
@@ -505,7 +516,8 @@ with tab4:
                         
                         curr_y = pdf.get_y()
                         pdf.set_font("Helvetica", 'B', 12)
-                        pdf.cell(190, 8, text=f"🔹 ACCIÓN: {elem_nombre.upper()}", new_x="LMARGIN", new_y="NEXT")
+                        # CAMBIADO EMOJI PROBLEMÁTICO A TEXTO ESTÁNDAR ->
+                        pdf.cell(190, 8, text=limpiar_texto(f"-> ACCION: {elem_nombre.upper()}"), new_x="LMARGIN", new_y="NEXT")
                         
                         # Gráfico a la izquierda
                         pdf.image(img_sub_path, x=10, y=curr_y + 8, w=80)
@@ -513,16 +525,16 @@ with tab4:
                         # Observaciones a la derecha
                         pdf.set_xy(95, curr_y + 8)
                         pdf.set_font("Helvetica", 'B', 10)
-                        pdf.cell(105, 6, text="Notas y Conclusiones Tácticas:", new_x="LMARGIN", new_y="NEXT")
+                        pdf.cell(105, 6, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
                         
                         pdf.set_x(95)
                         pdf.set_font("Helvetica", size=9)
                         
                         nota_texto = obs_rival.get(elem_nombre, "").strip()
                         if not nota_texto:
-                            nota_texto = "Sin observaciones registradas para este tipo de acción."
+                            nota_texto = "Sin observaciones registradas para este tipo de accion."
                             
-                        pdf.multi_cell(105, 5, text=nota_texto, border=1)
+                        pdf.multi_cell(105, 5, text=limpiar_texto(nota_texto), border=1)
                         
                         # Posicionar cursor tras el bloque
                         pdf.set_y(max(curr_y + 70, pdf.get_y() + 10))
@@ -531,25 +543,25 @@ with tab4:
                     # PÁGINA FINAL: TABLA DETALLADA DE REGISTROS
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
-                    pdf.cell(190, 10, text="4. Tabla Registro Detallado de Acciones", new_x="LMARGIN", new_y="NEXT")
+                    pdf.cell(190, 10, text=limpiar_texto("4. Tabla Registro Detallado de Acciones"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(3)
                     
                     pdf.set_font("Helvetica", 'B', 10)
-                    pdf.cell(40, 8, "Elemento", border=1)
-                    pdf.cell(40, 8, "Resultado", border=1)
-                    pdf.cell(35, 8, "Posición (X, Y)", border=1)
-                    pdf.cell(35, 8, "Jornada", border=1)
-                    pdf.cell(40, 8, "Zona", border=1)
+                    pdf.cell(40, 8, limpiar_texto("Elemento"), border=1)
+                    pdf.cell(40, 8, limpiar_texto("Resultado"), border=1)
+                    pdf.cell(35, 8, limpiar_texto("Posición (X, Y)"), border=1)
+                    pdf.cell(35, 8, limpiar_texto("Jornada"), border=1)
+                    pdf.cell(40, 8, limpiar_texto("Zona"), border=1)
                     pdf.ln()
                     
                     pdf.set_font("Helvetica", size=9)
                     df_ordenado_pdf = df_pdf.sort_values(by=["Elemento", "Resultado"], ascending=True)
                     for _, row in df_ordenado_pdf.iterrows():
-                        pdf.cell(40, 7, str(row['Elemento']), border=1)
-                        pdf.cell(40, 7, str(row['Resultado']), border=1)
-                        pdf.cell(35, 7, f"{row['X']}m, {row['Y']}m", border=1)
-                        pdf.cell(35, 7, str(row['Jornada']), border=1)
-                        pdf.cell(40, 7, str(row['Zona']), border=1)
+                        pdf.cell(40, 7, limpiar_texto(row['Elemento']), border=1)
+                        pdf.cell(40, 7, limpiar_texto(row['Resultado']), border=1)
+                        pdf.cell(35, 7, limpiar_texto(f"{row['X']}m, {row['Y']}m"), border=1)
+                        pdf.cell(35, 7, limpiar_texto(row['Jornada']), border=1)
+                        pdf.cell(40, 7, limpiar_texto(row['Zona']), border=1)
                         pdf.ln()
 
                     pdf_bytes = bytes(pdf.output())
