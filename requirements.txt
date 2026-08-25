@@ -1,5 +1,4 @@
 streamlit
 pandas
-plotly
+bokeh
 fpdf2
-streamlit-plotly-events
