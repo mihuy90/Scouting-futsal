@@ -429,7 +429,7 @@ with tab4:
                 pdf = FPDF()
                 pdf.set_auto_page_break(auto=True, margin=15)
                 
-                # PÁGINA 1: PORTADA Y MAPA DE PISTA
+                # PÁGINA 1: PORTADA Y MAPA DE PISTA GENERAL
                 pdf.add_page()
                 pdf.set_font("Helvetica", 'B', 18)
                 pdf.cell(190, 10, text=limpiar_texto("INFORME TACTICO Y DE SCOUTING"), new_x="LMARGIN", new_y="NEXT", align='C')
@@ -440,18 +440,18 @@ with tab4:
                 pdf.ln(5)
                 
                 with tempfile.TemporaryDirectory() as tmpdir:
-                    # Mapa Pista
+                    # Mapa Pista General
                     fig_pista_pdf = dibujar_pista(df_puntos=df_pdf, modo="calor")
                     fig_pista_pdf.update_layout(paper_bgcolor="white", plot_bgcolor="#0f172a")
                     img_pista_path = os.path.join(tmpdir, "mapa_pista.png")
                     fig_pista_pdf.write_image(img_pista_path, width=1000, height=550, scale=2)
                     
                     pdf.set_font("Helvetica", 'B', 12)
-                    pdf.cell(190, 8, text=limpiar_texto("1. Mapa de Calor y Tiro Registrado en Pista"), new_x="LMARGIN", new_y="NEXT")
+                    pdf.cell(190, 8, text=limpiar_texto("1. Mapa de Calor General (Todas las acciones)"), new_x="LMARGIN", new_y="NEXT")
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(5)
                     
-                    # PÁGINA 2: GRÁFICOS GENERALES CORREGIDOS Y PERFECTAMENTE MAQUETADOS
+                    # PÁGINA 2: GRÁFICOS GENERALES
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("2. Analisis de Efectividad General y Distribucion"), new_x="LMARGIN", new_y="NEXT")
@@ -532,20 +532,33 @@ with tab4:
                     img_elem_path = os.path.join(tmpdir, "distribucion_elementos.png")
                     fig_elem.write_image(img_elem_path, width=900, height=480, scale=2)
                     
-                    # Insertar imágenes en página 2
                     pdf.image(img_res_path, x=15, y=30, w=180)
                     pdf.image(img_elem_path, x=15, y=145, w=180)
                     
-                    # PÁGINA 3 EN ADELANTE: EFECTIVIDAD GIGANTE + NOTAS DEBAJO
-                    pdf.add_page()
-                    pdf.set_font("Helvetica", 'B', 14)
-                    pdf.cell(190, 10, text=limpiar_texto("3. Analisis Tactico y Observaciones por Jugada"), new_x="LMARGIN", new_y="NEXT")
-                    pdf.ln(3)
-                    
+                    # PÁGINA 3 EN ADELANTE: PISTA FILTRADA + EFECTIVIDAD LADO A LADO + NOTAS ABAJO
                     elementos_unicos = [e for e in ELEMENTOS_LISTA if e in df_pdf["Elemento"].unique()]
                     
                     for idx, elem_nombre in enumerate(elementos_unicos):
+                        pdf.add_page()
+                        
+                        pdf.set_font("Helvetica", 'B', 14)
+                        pdf.cell(190, 10, text=limpiar_texto(f"3.{idx+1} Analisis Tactico: {elem_nombre.upper()}"), new_x="LMARGIN", new_y="NEXT")
+                        pdf.ln(2)
+                        
                         df_sub = df_pdf[df_pdf["Elemento"] == elem_nombre]
+                        
+                        # A) Generar Mapa de Pista específico solo para este Elemento
+                        fig_pista_elem = dibujar_pista(df_puntos=df_sub, modo="calor")
+                        fig_pista_elem.update_layout(
+                            paper_bgcolor="white", 
+                            plot_bgcolor="#0f172a",
+                            title=dict(text=f"Ubicacion de tiros: {elem_nombre}", font=dict(size=14)),
+                            showlegend=False
+                        )
+                        img_pista_sub_path = os.path.join(tmpdir, f"pista_sub_{idx}.png")
+                        fig_pista_elem.write_image(img_pista_sub_path, width=700, height=400, scale=2)
+                        
+                        # B) Generar Gráfico de Quesito específico para este Elemento
                         df_sub_counts = df_sub["Resultado"].value_counts().reset_index()
                         df_sub_counts.columns = ["Resultado", "Cantidad"]
                         
@@ -557,41 +570,34 @@ with tab4:
                             color_discrete_map=COLOR_MAP_PDF, 
                             hole=0.35
                         )
-                        fig_sub.update_traces(textposition='auto', textinfo='percent+label+value', textfont_size=14)
+                        fig_sub.update_traces(textposition='auto', textinfo='percent+label+value', textfont_size=13)
                         fig_sub.update_layout(
                             title_text=f"Efectividad: {elem_nombre}", 
                             paper_bgcolor="white", 
-                            font=dict(size=13),
-                            margin=dict(l=20, r=20, t=40, b=40),
+                            font=dict(size=12),
+                            margin=dict(l=10, r=10, t=40, b=40),
                             legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5)
                         )
-                        
                         img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
-                        fig_sub.write_image(img_sub_path, width=800, height=500, scale=2)
+                        fig_sub.write_image(img_sub_path, width=600, height=400, scale=2)
                         
-                        # Salto de página preventivo si la sección actual no entra
-                        if pdf.get_y() > 120:
-                            pdf.add_page()
+                        # C) Renderizar imágenes lado a lado (Fila superior)
+                        y_pos_imgs = pdf.get_y()
+                        pdf.image(img_pista_sub_path, x=10, y=y_pos_imgs, w=98)
+                        pdf.image(img_sub_path, x=110, y=y_pos_imgs, w=90)
                         
-                        pdf.set_font("Helvetica", 'B', 12)
-                        pdf.cell(190, 8, text=limpiar_texto(f"-> ACCION: {elem_nombre.upper()}"), new_x="LMARGIN", new_y="NEXT")
+                        # D) Colocar Observaciones debajo abarcando todo el resto del espacio
+                        pdf.set_y(y_pos_imgs + 65)
+                        pdf.set_font("Helvetica", 'B', 11)
+                        pdf.cell(190, 7, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
                         
-                        # Posicionado exacto del gráfico grande y el texto
-                        y_inicio_img = pdf.get_y()
-                        pdf.image(img_sub_path, x=30, y=y_inicio_img, w=150)
-                        
-                        pdf.set_y(y_inicio_img + 98)
-                        
-                        pdf.set_font("Helvetica", 'B', 10)
-                        pdf.cell(190, 6, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
-                        
-                        pdf.set_font("Helvetica", size=9)
+                        pdf.set_font("Helvetica", size=10)
                         nota_texto = obs_rival.get(elem_nombre, "").strip()
                         if not nota_texto:
                             nota_texto = "Sin observaciones registradas para este tipo de accion."
                             
-                        pdf.multi_cell(190, 5, text=limpiar_texto(nota_texto), border=1)
-                        pdf.ln(10)
+                        # El cuadro ocupa dinámicamente el resto de la hoja hasta el margen inferior
+                        pdf.multi_cell(190, 6, text=limpiar_texto(nota_texto), border=1)
 
                     # PÁGINA FINAL: TABLA DETALLADA DE REGISTROS
                     pdf.add_page()
