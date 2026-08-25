@@ -14,9 +14,7 @@ st.title("⚽ Scouting & Análisis Táctico - Fútbol Sala")
 def limpiar_texto(texto):
     if not isinstance(texto, str):
         return str(texto)
-    # Reemplazar caracteres unicode problemáticos por equivalentes ASCII
     texto = texto.replace("🔹", "-> ").replace("•", "-").replace("—", "-")
-    # Normalizar tildes y caracteres especiales a Latin-1 compatible
     texto_normalizado = unicodedata.normalize('NFKD', texto).encode('latin-1', 'ignore').decode('latin-1')
     return texto_normalizado
 
@@ -28,25 +26,31 @@ if "datos" not in st.session_state:
 
 # 2. Base de datos local de observaciones/notas por rival y elemento
 if "observaciones" not in st.session_state:
-    st.session_state.observaciones = {} # Estructura: { "Rival": { "Elemento": "Texto de nota..." } }
+    st.session_state.observaciones = {}
 
-# DICCIONARIO DE COLORES SEGÚN RESULTADO
+# DICCIONARIO DE COLORES PISTA / PANTALLA
 COLOR_MAP = {
     "Gol": "#ef4444",               # Rojo vivo
     "Remate a Puerta": "#facc15",    # Amarillo potente
-    "Remate Fuera": "#ffffff",     # Blanco puro
+    "Remate Fuera": "#e2e8f0",      # Blanco/Gris clarito visible en pista azul
     "Pérdida / Bloqueado": "#fb923c" # Naranja brillante
 }
 
-# Aura / Halo translúcido
+# DICCIONARIO DE COLORES PARA PDF (Fondo Blanco)
+COLOR_MAP_PDF = {
+    "Gol": "#ef4444",               # Rojo
+    "Remate a Puerta": "#eab308",    # Amarillo oscuro/Dorado
+    "Remate Fuera": "#64748b",      # Gris azulado visible sobre folio blanco
+    "Pérdida / Bloqueado": "#f97316" # Naranja
+}
+
 AURA_MAP = {
     "Gol": "rgba(239, 68, 68, 0.35)",
     "Remate a Puerta": "rgba(250, 204, 21, 0.35)",
-    "Remate Fuera": "rgba(255, 255, 255, 0.25)",
+    "Remate Fuera": "rgba(226, 232, 240, 0.3)",
     "Pérdida / Bloqueado": "rgba(251, 146, 60, 0.3)"
 }
 
-# FORMA DEL ICONO SEGÚN EL ELEMENTO
 SYMBOL_ELEMENTO_MAP = {
     "Córner": "triangle-up",
     "Banda": "diamond",
@@ -57,7 +61,6 @@ SYMBOL_ELEMENTO_MAP = {
     "Juego Continuo / Tiro": "circle"
 }
 
-# Tamaños equilibrados
 SIZE_MAP = {
     "Gol": 15,
     "Remate a Puerta": 13,
@@ -75,11 +78,9 @@ ELEMENTOS_LISTA = [
     "Juego Continuo / Tiro"
 ]
 
-# Función para dibujar la pista oficial
 def dibujar_pista(df_puntos=None, modo="limpio"):
     fig = go.Figure()
 
-    # 1. CAPA BASE DE LA PISTA (Rectángulo Azul)
     fig.add_shape(
         type="rect", x0=0, y0=0, x1=40, y1=20, 
         line=dict(color="white", width=3), 
@@ -87,7 +88,6 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
         layer="below"
     )
 
-    # 2. REJILLA INVISIBLE PARA CAPTURAR EL CLIC DEL RATÓN
     grid_x = [x * 0.5 for x in range(81)]
     grid_y = [y * 0.5 for y in range(41)]
     x_mesh, y_mesh = [], []
@@ -104,7 +104,6 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
         showlegend=False
     ))
 
-    # 3. LÍNEAS OFICIALES DE LA PISTA (40m x 20m)
     lineas = [
         dict(type="line", x0=20, y0=0, x1=20, y1=20, line=dict(color="white", width=2)),
         dict(type="circle", x0=17, y0=7, x1=23, y1=13, line=dict(color="white", width=2)),
@@ -117,14 +116,12 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
     for l in lineas:
         fig.add_shape(l)
 
-    # 4. CAPA DE PUNTOS TÁCTICOS
     if modo == "calor" and df_puntos is not None and not df_puntos.empty:
         for res in ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"]:
             df_sub = df_puntos[df_puntos["Resultado"] == res]
             if not df_sub.empty:
                 simbolos = [SYMBOL_ELEMENTO_MAP.get(elem, "circle") for elem in df_sub["Elemento"]]
                 
-                # Capa A: Aura translúcida
                 fig.add_trace(go.Scatter(
                     x=df_sub["X"],
                     y=df_sub["Y"],
@@ -138,7 +135,6 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
                     showlegend=False
                 ))
 
-                # Capa B: Punto / Icono táctico preciso
                 fig.add_trace(go.Scatter(
                     x=df_sub["X"],
                     y=df_sub["Y"],
@@ -183,7 +179,6 @@ resultado = st.sidebar.radio("Resultado", ["Gol", "Remate a Puerta", "Remate Fue
 st.sidebar.markdown("---")
 st.sidebar.header("📂 Gestión de Partidos")
 
-# 1. BOTÓN DESCARGAR PARTIDO ACTUAL CSV
 if not st.session_state.datos.empty:
     csv_data = st.session_state.datos.to_csv(index=False).encode('utf-8')
     st.sidebar.download_button(
@@ -194,7 +189,6 @@ if not st.session_state.datos.empty:
         use_container_width=True
     )
 
-# 2. SUBIR Y FUSIONAR ARCHIVOS CSV ANTERIORES
 archivos_cargados = st.sidebar.file_uploader("📥 Cargar / Fusionar CSVs de Partidos", type=["csv"], accept_multiple_files=True)
 if archivos_cargados:
     if st.sidebar.button("🔄 Fusionar Datos Cargados", use_container_width=True):
@@ -207,7 +201,6 @@ if archivos_cargados:
             st.sidebar.success("¡Datos fusionados con éxito!")
             st.rerun()
 
-# 3. EMPEZAR UN NUEVO PARTIDO (LIMPIAR PISTA)
 if st.sidebar.button("🗑️ Empezar Nuevo Partido (Limpiar)", type="secondary", use_container_width=True):
     st.session_state.datos = pd.DataFrame(columns=[
         "Rival", "Jornada", "Elemento", "Zona", "Resultado", "X", "Y"
@@ -408,7 +401,6 @@ with tab_obs:
 
     st.markdown("---")
     
-    # Formulario para cada elemento de juego
     for elem in ELEMENTOS_LISTA:
         val_previo = st.session_state.observaciones[rival_obs_sel].get(elem, "")
         
@@ -459,14 +451,14 @@ with tab4:
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(5)
                     
-                    # PÁGINA 2: GRÁFICOS GENERALES
+                    # PÁGINA 2: GRÁFICOS GENERALES (CON COLORES ADAPTADOS A FONDO BLANCO)
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("2. Analisis de Efectividad General y Distribucion"), new_x="LMARGIN", new_y="NEXT")
                     
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
-                    fig_res = px.pie(df_res, values="Cantidad", names="Resultado", color="Resultado", color_discrete_map=COLOR_MAP, hole=0.4)
+                    fig_res = px.pie(df_res, values="Cantidad", names="Resultado", color="Resultado", color_discrete_map=COLOR_MAP_PDF, hole=0.4)
                     fig_res.update_traces(textposition='inside', textinfo='percent+label+value')
                     fig_res.update_layout(title_text="Efectividad Global (% Resultados)", paper_bgcolor="white")
                     img_res_path = os.path.join(tmpdir, "efectividad_general.png")
@@ -501,7 +493,7 @@ with tab4:
                             values="Cantidad", 
                             names="Resultado", 
                             color="Resultado", 
-                            color_discrete_map=COLOR_MAP, 
+                            color_discrete_map=COLOR_MAP_PDF, 
                             hole=0.4
                         )
                         fig_sub.update_traces(textposition='inside', textinfo='percent+label+value')
@@ -510,19 +502,15 @@ with tab4:
                         img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
                         fig_sub.write_image(img_sub_path, width=500, height=350, scale=2)
                         
-                        # Comprobar espacio vertical suficiente
                         if pdf.get_y() > 200:
                             pdf.add_page()
                         
                         curr_y = pdf.get_y()
                         pdf.set_font("Helvetica", 'B', 12)
-                        # CAMBIADO EMOJI PROBLEMÁTICO A TEXTO ESTÁNDAR ->
                         pdf.cell(190, 8, text=limpiar_texto(f"-> ACCION: {elem_nombre.upper()}"), new_x="LMARGIN", new_y="NEXT")
                         
-                        # Gráfico a la izquierda
                         pdf.image(img_sub_path, x=10, y=curr_y + 8, w=80)
                         
-                        # Observaciones a la derecha
                         pdf.set_xy(95, curr_y + 8)
                         pdf.set_font("Helvetica", 'B', 10)
                         pdf.cell(105, 6, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
@@ -536,7 +524,6 @@ with tab4:
                             
                         pdf.multi_cell(105, 5, text=limpiar_texto(nota_texto), border=1)
                         
-                        # Posicionar cursor tras el bloque
                         pdf.set_y(max(curr_y + 70, pdf.get_y() + 10))
                         pdf.ln(5)
 
