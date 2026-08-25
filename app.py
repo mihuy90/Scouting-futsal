@@ -12,12 +12,12 @@ if "datos" not in st.session_state:
         "Rival", "Jornada", "Elemento", "Zona", "Resultado", "X", "Y"
     ])
 
-# DICCIONARIO DE COLORES Y ESTILOS POR RESULTADO
+# DICCIONARIO DE COLORES Y ESTILOS DESTACADOS
 COLOR_MAP = {
-    "Gol": "#ef4444",               # Rojo brillante
-    "Remate a Puerta": "#facc15",    # Amarillo potente
+    "Gol": "#ff2222",               # Rojo vivo
+    "Remate a Puerta": "#ffea00",    # Amarillo fosforito
     "Remate Fuera": "#ffffff",     # Blanco puro
-    "Pérdida / Bloqueado": "#94a3b8" # Gris / Naranja suave
+    "Pérdida / Bloqueado": "#fb923c" # Naranja / Gris brillante
 }
 
 SYMBOL_MAP = {
@@ -27,15 +27,43 @@ SYMBOL_MAP = {
     "Pérdida / Bloqueado": "x"
 }
 
-# Función para dibujar la pista oficial con puntos exactos o calor preciso
-def dibujar_pista(df_puntos=None, modo_mapa="puntos", mostrar_densidad=False):
+SIZE_MAP = {
+    "Gol": 22,
+    "Remate a Puerta": 18,
+    "Remate Fuera": 16,
+    "Pérdida / Bloqueado": 16
+}
+
+# Función para dibujar la pista oficial con capas y orden correcto
+def dibujar_pista(df_puntos=None, mostrar_densidad=False):
     fig = go.Figure()
-    
-    # Capa de Rejilla Invisible para que CUALQUIER punto del campo capture el clic
+
+    # 1. CAPA BASE DE LA PISTA (Rectángulo Azul)
+    fig.add_shape(
+        type="rect", x0=0, y0=0, x1=40, y1=20, 
+        line=dict(color="white", width=3), 
+        fillcolor="#1e3a8a", 
+        layer="below"
+    )
+
+    # 2. CAPA DE DENSIDAD DE CALOR (Opcional)
+    if mostrar_densidad and df_puntos is not None and not df_puntos.empty:
+        fig.add_trace(go.Histogram2dContour(
+            x=df_puntos["X"],
+            y=df_puntos["Y"],
+            colorscale="YlOrRd",
+            reversescale=False,
+            showscale=False,
+            opacity=0.5,
+            nbinsx=30,
+            nbinsy=15,
+            contours=dict(coloring='heatmap', showlines=False)
+        ))
+
+    # 3. REJILLA INVISIBLE PARA CAPTURAR EL CLIC DEL RATÓN
     grid_x = [x * 0.5 for x in range(81)]
     grid_y = [y * 0.5 for y in range(41)]
-    x_mesh = []
-    y_mesh = []
+    x_mesh, y_mesh = [], []
     for gx in grid_x:
         for gy in grid_y:
             x_mesh.append(gx)
@@ -44,28 +72,13 @@ def dibujar_pista(df_puntos=None, modo_mapa="puntos", mostrar_densidad=False):
     fig.add_trace(go.Scatter(
         x=x_mesh, y=y_mesh,
         mode="markers",
-        marker=dict(size=12, color="rgba(0,0,0,0)"),
+        marker=dict(size=10, color="rgba(0,0,0,0)"),
         hoverinfo="none",
         showlegend=False
     ))
 
-    # CAPA DE DENSIDAD / CALOR FOCALIZADA (Ajustada a la pista)
-    if mostrar_densidad and df_puntos is not None and not df_puntos.empty:
-        fig.add_trace(go.Histogram2dContour(
-            x=df_puntos["X"],
-            y=df_puntos["Y"],
-            colorscale="YlOrRd",
-            reversescale=False,
-            showscale=False,
-            opacity=0.45,
-            nbinsx=40,
-            nbinsy=20,
-            contours=dict(coloring='heatmap', showlines=False)
-        ))
-
-    # Líneas oficiales del campo de fútbol sala (40m x 20m)
-    shapes = [
-        dict(type="rect", x0=0, y0=0, x1=40, y1=20, line=dict(color="white", width=3), fillcolor="#1e3a8a"),
+    # 4. LÍNEAS OFICIALES DE LA PISTA (40m x 20m)
+    lineas = [
         dict(type="line", x0=20, y0=0, x1=20, y1=20, line=dict(color="white", width=2)),
         dict(type="circle", x0=17, y0=7, x1=23, y1=13, line=dict(color="white", width=2)),
         dict(type="circle", x0=19.8, y0=9.8, x1=20.2, y1=10.2, line=dict(color="white"), fillcolor="white"),
@@ -74,30 +87,30 @@ def dibujar_pista(df_puntos=None, modo_mapa="puntos", mostrar_densidad=False):
         dict(type="rect", x0=0, y0=8.5, x1=0.8, y1=11.5, line=dict(color="yellow", width=2), fillcolor="rgba(255,255,0,0.3)"),
         dict(type="rect", x0=39.2, y0=8.5, x1=40, y1=11.5, line=dict(color="yellow", width=2), fillcolor="rgba(255,255,0,0.3)"),
     ]
-    
-    # DIBUJO DE PUNTOS DE PRECISIÓN
+    for l in lineas:
+        fig.add_shape(l)
+
+    # 5. PUNTOS TÁCTICOS (PUESTOS POR ENCIMA EN LA CAPA SUPERIOR)
     if df_puntos is not None and not df_puntos.empty:
         for res in ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"]:
             df_sub = df_puntos[df_puntos["Resultado"] == res]
             if not df_sub.empty:
-                size_pt = 14 if res == "Gol" else (11 if res == "Remate a Puerta" else 9)
                 fig.add_trace(go.Scatter(
                     x=df_sub["X"],
                     y=df_sub["Y"],
                     mode="markers",
                     name=res,
                     marker=dict(
-                        size=size_pt,
+                        size=SIZE_MAP.get(res, 16),
                         color=COLOR_MAP.get(res, "#ffffff"),
                         symbol=SYMBOL_MAP.get(res, "circle"),
-                        line=dict(width=1.5, color="black")
+                        line=dict(width=2, color="black") # Borde negro bien marcado
                     ),
                     text=[f"{row['Elemento']} ({row['Jornada']})" for _, row in df_sub.iterrows()],
                     hoverinfo="text+x+y"
                 ))
 
     fig.update_layout(
-        shapes=shapes,
         xaxis=dict(range=[-0.5, 40.5], showgrid=False, zeroline=False, visible=False, fixedrange=True),
         yaxis=dict(range=[-0.5, 20.5], showgrid=False, zeroline=False, visible=False, scaleanchor="x", scaleratio=1, fixedrange=True),
         plot_bgcolor="#0f172a",
@@ -136,12 +149,12 @@ tab1, tab2, tab3, tab4 = st.tabs(["🎯 Registrador Interactivo", "🔥 Mapa de 
 
 df_totales = st.session_state.datos
 
-# PESTAÑA 1: REGISTRADOR CON CAPTURA AUTOMÁTICA
+# PESTAÑA 1: REGISTRADOR INTERACTIVO
 with tab1:
     st.header(f"🎯 Registro de acciones contra: {rival}")
     
     df_rival = df_totales[df_totales["Rival"] == rival] if not df_totales.empty else pd.DataFrame()
-    fig_pista = dibujar_pista(df_puntos=df_rival, modo_mapa="puntos")
+    fig_pista = dibujar_pista(df_puntos=df_rival)
     
     evento_clic = st.plotly_chart(fig_pista, on_select="rerun", selection_mode="points", key="pista_interactiva")
     
@@ -189,7 +202,8 @@ with tab2:
     if not df_totales.empty:
         col_sel, col_chk = st.columns([3, 2])
         with col_sel:
-            rival_sel = st.selectbox("Seleccionar Rival para visualizar:", df_totales["Rival"].unique(), key="mapa_rival")
+            rivales_disponibles = df_totales["Rival"].unique().tolist()
+            rival_sel = st.selectbox("Seleccionar Rival para visualizar:", rivales_disponibles, key="mapa_rival")
         with col_chk:
             st.write("")
             mostrar_dens = st.checkbox("🔥 Superponer Sombra de Densidad/Calor", value=False)
@@ -197,11 +211,10 @@ with tab2:
         df_mapa = df_totales[df_totales["Rival"] == rival_sel]
         
         if not df_mapa.empty:
-            fig_preciso = dibujar_pista(df_puntos=df_mapa, modo_mapa="puntos", mostrar_densidad=mostrar_dens)
+            fig_preciso = dibujar_pista(df_puntos=df_mapa, mostrar_densidad=mostrar_dens)
             st.plotly_chart(fig_preciso, use_container_width=True)
             
-            # Leyenda aclaratoria
-            st.info("🔴 **Rojo (Estrella)** = Gol | 🟡 **Amarillo** = Remate a Puerta | ⚪ **Blanco** = Remate Fuera | 🔘 **Gris** = Pérdida / Bloqueado")
+            st.info("🔴 **Estrella Roja** = Gol | 🟡 **Círculo Amarillo** = Remate a Puerta | ⚪ **Círculo Blanco** = Remate Fuera | 🟠 **X Naranja** = Pérdida / Bloqueado")
         else:
             st.warning("No hay datos para este rival.")
     else:
