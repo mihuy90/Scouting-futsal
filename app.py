@@ -457,7 +457,7 @@ with tab4:
                     pdf.cell(190, 10, text=limpiar_texto("2. Analisis de Efectividad General y Distribucion"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(2)
                     
-                    # 1. Efectividad Global (% Resultados) - DONA CON TEXTO DENTRO Y LEYENDA CLARA
+                    # 1. Efectividad Global (% Resultados)
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
                     fig_res = px.pie(
@@ -490,7 +490,7 @@ with tab4:
                     img_res_path = os.path.join(tmpdir, "efectividad_general.png")
                     fig_res.write_image(img_res_path, width=900, height=480, scale=2)
                     
-                    # 2. Distribución Global por Elemento - BARRAS HORIZONTALES CON MARGEN IZQUIERDO CORREGIDO
+                    # 2. Distribución Global por Elemento
                     df_elem = df_pdf["Elemento"].value_counts().reset_index()
                     df_elem.columns = ["Elemento", "Cantidad"]
                     df_elem = df_elem.sort_values(by="Cantidad", ascending=True)
@@ -522,17 +522,17 @@ with tab4:
                             showgrid=True, 
                             gridcolor="#f0f0f0", 
                             title="Nº de Acciones",
-                            range=[0, max_val * 1.25]  # Evita que el texto de la barra derecha se corte
+                            range=[0, max_val * 1.25]
                         ),
                         yaxis=dict(title="", tickfont=dict(size=12)),
                         font=dict(size=13),
-                        margin=dict(l=180, r=80, t=50, b=50) # l=180 evita que "Juego Continuo / Tiro" se recorte a la izquierda
+                        margin=dict(l=180, r=80, t=50, b=50)
                     )
 
                     img_elem_path = os.path.join(tmpdir, "distribucion_elementos.png")
                     fig_elem.write_image(img_elem_path, width=900, height=480, scale=2)
                     
-                    # Insertar ambas imágenes en la página 2 con proporciones ajustadas
+                    # Insertar imágenes en página 2
                     pdf.image(img_res_path, x=15, y=30, w=180)
                     pdf.image(img_elem_path, x=15, y=145, w=180)
                     
@@ -567,16 +567,20 @@ with tab4:
                         )
                         
                         img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
-                        fig_sub.write_image(img_sub_path, width=750, height=450, scale=2)
+                        fig_sub.write_image(img_sub_path, width=800, height=500, scale=2)
                         
-                        if pdf.get_y() > 170:
+                        # Salto de página preventivo si la sección actual no entra
+                        if pdf.get_y() > 120:
                             pdf.add_page()
                         
                         pdf.set_font("Helvetica", 'B', 12)
                         pdf.cell(190, 8, text=limpiar_texto(f"-> ACCION: {elem_nombre.upper()}"), new_x="LMARGIN", new_y="NEXT")
                         
-                        pdf.image(img_sub_path, x=35, y=pdf.get_y(), w=140)
-                        pdf.set_y(pdf.get_y() + 85)
+                        # Posicionado exacto del gráfico grande y el texto
+                        y_inicio_img = pdf.get_y()
+                        pdf.image(img_sub_path, x=30, y=y_inicio_img, w=150)
+                        
+                        pdf.set_y(y_inicio_img + 98)
                         
                         pdf.set_font("Helvetica", 'B', 10)
                         pdf.cell(190, 6, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
@@ -587,7 +591,7 @@ with tab4:
                             nota_texto = "Sin observaciones registradas para este tipo de accion."
                             
                         pdf.multi_cell(190, 5, text=limpiar_texto(nota_texto), border=1)
-                        pdf.ln(8)
+                        pdf.ln(10)
 
                     # PÁGINA FINAL: TABLA DETALLADA DE REGISTROS
                     pdf.add_page()
