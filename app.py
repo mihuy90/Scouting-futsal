@@ -274,9 +274,9 @@ with tab1:
             st.success(f"📌 ¡Guardado! {elemento} ({resultado}) en X:{pos_x}m, Y:{pos_y}m")
             st.rerun()
 
-# PESTAÑA 2: MAPA DE CALOR
+# PESTAÑA 2: MAPA DE CALOR CON OPCIÓN DE BORRADO
 with tab2:
-    st.header("🔥 Mapa de Calor y Origen del Golpeo")
+    st.header("🔥 Mapa de Calor y Borrado de Acciones")
     if not df_totales.empty:
         col_riv, col_filt = st.columns([2, 2])
         with col_riv:
@@ -291,18 +291,67 @@ with tab2:
             df_mapa = df_mapa[df_mapa["Elemento"] == filtro_elem]
         
         if not df_mapa.empty:
-            fig_calor = dibujar_pista(df_puntos=df_mapa, modo="calor")
-            st.plotly_chart(fig_calor, use_container_width=True)
+            st.info("💡 **Para borrar un punto:** Haz clic en él sobre la pista o selecciónalo en el menú desplegable de abajo.")
             
-            st.markdown("""
-            **Leyenda de Formas (Origen de la acción):**
-            * 🔺 **Triángulo:** Córner
-            * 🔷 **Diamante:** Banda
-            * ✖️ **Cruz:** Contraataque
-            * 🎯 **Diana (círculo con punto):** Falta / Penalti
-            * ✴️ **Estrella (Hexagrama):** 5x4 / Portero Jugador
-            * 🟡🔴⚪ **Círculo:** Juego Continuo / Tiro Libre
-            """)
+            fig_calor = dibujar_pista(df_puntos=df_mapa, modo="calor")
+            
+            # Hacemos que la pista devuelva eventos de selección
+            evento_mapa = st.plotly_chart(
+                fig_calor, 
+                use_container_width=True, 
+                on_select="rerun", 
+                selection_mode="points", 
+                key="pista_borrado"
+            )
+            
+            # --- SECCIÓN DE BORRADO INTERACTIVO ---
+            st.markdown("---")
+            st.subheader("🗑️ Eliminar Registros")
+            
+            col_del1, col_del2 = st.columns([3, 1])
+            
+            # Detectar si se pulsó un punto en la gráfica de calor
+            indice_a_borrar = None
+            
+            if evento_mapa and "points" in evento_mapa.get("selection", {}) and len(evento_mapa["selection"]["points"]) > 0:
+                punto_sel = evento_mapa["selection"]["points"][0]
+                x_sel, y_sel = punto_sel.get("x"), punto_sel.get("y")
+                
+                # Buscar el índice en el DataFrame original que coincide con las coordenadas y rival
+                coincidencias = st.session_state.datos[
+                    (st.session_state.datos["Rival"] == rival_sel) & 
+                    (np.isclose(st.session_state.datos["X"], x_sel, atol=0.4)) & 
+                    (np.isclose(st.session_state.datos["Y"], y_sel, atol=0.4))
+                ]
+                if not coincidencias.empty:
+                    indice_a_borrar = coincidencias.index[0]
+
+            with col_del1:
+                # Mapeo de opciones para el selector manual por si prefieren elegirlo de una lista
+                opciones_puntos = {
+                    idx: f"ID {idx} | {row['Elemento']} - {row['Resultado']} (X: {row['X']}m, Y: {row['Y']}m) [{row['Jornada']}]"
+                    for idx, row in df_mapa.iterrows()
+                }
+                
+                # Si se seleccionó desde el gráfico, se marca por defecto
+                idx_defecto = list(opciones_puntos.keys()).index(indice_a_borrar) if indice_a_borrar in opciones_puntos else 0
+                
+                id_seleccionado = st.selectbox(
+                    "Selecciona el punto que deseas eliminar:",
+                    options=list(opciones_puntos.keys()),
+                    format_func=lambda x: opciones_puntos[x],
+                    index=idx_defecto,
+                    key="selector_borrado"
+                )
+
+            with col_del2:
+                st.write("")
+                st.write("")
+                if st.button("❌ Eliminar Punto", type="primary", use_container_width=True):
+                    st.session_state.datos = st.session_state.datos.drop(index=id_seleccionado).reset_index(drop=True)
+                    st.success("¡Acción eliminada correctamente!")
+                    st.rerun()
+
         else:
             st.warning("No hay datos para este filtro.")
     else:
