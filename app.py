@@ -306,7 +306,7 @@ with tab2:
     else:
         st.info("Aún no has registrado ningún tiro.")
 
-# PESTAÑA 3: ESTADÍSTICAS Y TABLA DE EDICIÓN NATIVA
+# PESTAÑA 3: ESTADÍSTICAS Y BORRADO INTERACTIVO
 with tab3:
     st.header("📊 Estadísticas Acumuladas & Efectividad")
     if not df_totales.empty:
@@ -392,35 +392,35 @@ with tab3:
 
         st.markdown("---")
         st.subheader("📋 Registro Detallado de Acciones")
-        st.caption("Marca en la casilla de la izquierda las acciones que desees borrar y haz clic en el botón superior.")
+        st.caption("Marca la casilla de la izquierda en las acciones que quieras eliminar y presiona el botón.")
 
-        # Preparación de datos manteniendo los índices originales para el borrado
+        # Copia para edición interactiva
         df_edit = df_rival2.copy()
         df_edit.insert(0, "Seleccionar", False)
 
-        # Formato nativo st.data_editor
+        # Renderizado interactivo con st.data_editor
         edited_df = st.data_editor(
             df_edit,
             column_config={
                 "Seleccionar": st.column_config.CheckboxColumn(
                     "Eliminar",
-                    help="Marca para seleccionar y borrar",
+                    help="Marca para seleccionar y borrar esta acción",
                     default=False,
                 )
             },
             disabled=["Rival", "Jornada", "Elemento", "Zona", "Resultado", "X", "Y"],
-            hide_index=False,
+            hide_index=True,
             use_container_width=True,
-            key="tabla_edicion_nativa"
+            key="tabla_interactiva_borrado"
         )
 
-        # Botón de borrado único
-        filas_a_borrar = edited_df[edited_df["Seleccionar"] == True].index.tolist()
+        # Lógica de eliminación usando los índices reales de la base de datos
+        indices_a_borrar = edited_df[edited_df["Seleccionar"] == True].index.tolist()
         
-        if len(filas_a_borrar) > 0:
-            if st.button(f"🗑️ Eliminar {len(filas_a_borrar)} acción(es) seleccionada(s)", type="primary"):
-                st.session_state.datos = st.session_state.datos.drop(index=filas_a_borrar).reset_index(drop=True)
-                st.success("Acciones eliminadas correctamente.")
+        if len(indices_a_borrar) > 0:
+            if st.button(f"🗑️ Eliminar {len(indices_a_borrar)} acción(es) seleccionada(s)", type="primary"):
+                st.session_state.datos = st.session_state.datos.drop(index=indices_a_borrar).reset_index(drop=True)
+                st.success("Acción(es) eliminada(s) con éxito.")
                 st.rerun()
 
     else:
