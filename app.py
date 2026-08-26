@@ -11,7 +11,7 @@ import unicodedata
 st.set_page_config(page_title="Scouting Futsal Pro", layout="wide")
 st.title("⚽ Scouting & Análisis Táctico - Fútbol Sala")
 
-# Función auxiliar para sanitizar textos y evitar errores de codificación en FPDF
+# Función auxiliar para sanitizar textos en FPDF
 def limpiar_texto(texto):
     if not isinstance(texto, str):
         return str(texto)
@@ -41,20 +41,19 @@ if "datos" not in st.session_state:
 if "observaciones" not in st.session_state:
     st.session_state.observaciones = {}
 
-# DICCIONARIO DE COLORES PISTA / PANTALLA
+# DICCIONARIOS DE COLORES
 COLOR_MAP = {
-    "Gol": "#ef4444",               # Rojo vivo
-    "Remate a Puerta": "#facc15",    # Amarillo potente
-    "Remate Fuera": "#e2e8f0",      # Blanco/Gris clarito visible en pista azul
-    "Pérdida / Bloqueado": "#fb923c" # Naranja brillante
+    "Gol": "#ef4444",               
+    "Remate a Puerta": "#facc15",    
+    "Remate Fuera": "#e2e8f0",      
+    "Pérdida / Bloqueado": "#fb923c" 
 }
 
-# DICCIONARIO DE COLORES PARA PDF (Fondo Blanco)
 COLOR_MAP_PDF = {
-    "Gol": "#ef4444",               # Rojo
-    "Remate a Puerta": "#eab308",    # Amarillo oscuro/Dorado
-    "Remate Fuera": "#64748b",      # Gris azulado visible sobre folio blanco
-    "Pérdida / Bloqueado": "#f97316" # Naranja
+    "Gol": "#ef4444",               
+    "Remate a Puerta": "#eab308",    
+    "Remate Fuera": "#64748b",      
+    "Pérdida / Bloqueado": "#f97316" 
 }
 
 AURA_MAP = {
@@ -122,9 +121,7 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
 
     if modo == "calor" and df_puntos is not None and not df_puntos.empty:
         df_render = df_puntos.copy()
-        
         np.random.seed(42)
-        
         df_render["X_render"] = df_render["X"] + np.random.uniform(-0.35, 0.35, size=len(df_render))
         df_render["Y_render"] = df_render["Y"] + np.random.uniform(-0.35, 0.35, size=len(df_render))
 
@@ -133,7 +130,6 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
             if not df_sub.empty:
                 simbolos = [SYMBOL_ELEMENTO_MAP.get(str(elem), "circle") for elem in df_sub["Elemento"]]
                 
-                # Aura
                 fig.add_trace(go.Scatter(
                     x=df_sub["X_render"],
                     y=df_sub["Y_render"],
@@ -147,7 +143,6 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
                     showlegend=False
                 ))
 
-                # Marcador Principal
                 fig.add_trace(go.Scatter(
                     x=df_sub["X_render"],
                     y=df_sub["Y_render"],
@@ -232,7 +227,7 @@ tab1, tab2, tab3, tab_obs, tab4 = st.tabs([
 
 df_totales = st.session_state.datos
 
-# PESTAÑA 1: REGISTRADOR LIMPIO
+# PESTAÑA 1: REGISTRADOR
 with tab1:
     st.header(f"🎯 Registro de acciones contra: {rival}")
     
@@ -311,7 +306,7 @@ with tab2:
     else:
         st.info("Aún no has registrado ningún tiro.")
 
-# PESTAÑA 3: ESTADÍSTICAS Y GESTOR DE BORRADO
+# PESTAÑA 3: ESTADÍSTICAS Y TABLA DE EDICIÓN NATIVA
 with tab3:
     st.header("📊 Estadísticas Acumuladas & Efectividad")
     if not df_totales.empty:
@@ -396,33 +391,36 @@ with tab3:
                 st.plotly_chart(fig_pie_elem, use_container_width=True)
 
         st.markdown("---")
-        st.subheader("📋 Registro Detallado y Borrado de Acciones")
-        st.caption("Puedes eliminar cualquier acción individualmente pulsando su botón 'Borrar'.")
+        st.subheader("📋 Registro Detallado de Acciones")
+        st.caption("Marca en la casilla de la izquierda las acciones que desees borrar y haz clic en el botón superior.")
+
+        # Preparación de datos manteniendo los índices originales para el borrado
+        df_edit = df_rival2.copy()
+        df_edit.insert(0, "Seleccionar", False)
+
+        # Formato nativo st.data_editor
+        edited_df = st.data_editor(
+            df_edit,
+            column_config={
+                "Seleccionar": st.column_config.CheckboxColumn(
+                    "Eliminar",
+                    help="Marca para seleccionar y borrar",
+                    default=False,
+                )
+            },
+            disabled=["Rival", "Jornada", "Elemento", "Zona", "Resultado", "X", "Y"],
+            hide_index=False,
+            use_container_width=True,
+            key="tabla_edicion_nativa"
+        )
+
+        # Botón de borrado único
+        filas_a_borrar = edited_df[edited_df["Seleccionar"] == True].index.tolist()
         
-        df_ordenado = df_rival2.sort_values(by=["Elemento", "Resultado"], ascending=True)
-
-        # Encabezados de la tabla interactiva
-        c_elem, c_res, c_pos, c_jor, c_zona, c_act = st.columns([2, 2, 2, 2, 1.5, 1.5])
-        c_elem.markdown("**Elemento**")
-        c_res.markdown("**Resultado**")
-        c_pos.markdown("**Posición (X, Y)**")
-        c_jor.markdown("**Jornada**")
-        c_zona.markdown("**Zona**")
-        c_act.markdown("**Acción**")
-        st.markdown("---")
-
-        # Filas interactivas con botón de borrado
-        for idx, row in df_ordenado.iterrows():
-            c_elem, c_res, c_pos, c_jor, c_zona, c_act = st.columns([2, 2, 2, 2, 1.5, 1.5])
-            c_elem.write(row['Elemento'])
-            c_res.write(row['Resultado'])
-            c_pos.write(f"X: {row['X']}m, Y: {row['Y']}m")
-            c_jor.write(row['Jornada'])
-            c_zona.write(row['Zona'])
-            
-            if c_act.button("🗑️ Borrar", key=f"btn_del_stat_{idx}"):
-                st.session_state.datos = st.session_state.datos.drop(index=idx).reset_index(drop=True)
-                st.success("Acción eliminada con éxito.")
+        if len(filas_a_borrar) > 0:
+            if st.button(f"🗑️ Eliminar {len(filas_a_borrar)} acción(es) seleccionada(s)", type="primary"):
+                st.session_state.datos = st.session_state.datos.drop(index=filas_a_borrar).reset_index(drop=True)
+                st.success("Acciones eliminadas correctamente.")
                 st.rerun()
 
     else:
@@ -490,7 +488,7 @@ with tab4:
                 pdf = FPDF()
                 pdf.set_auto_page_break(auto=True, margin=15)
                 
-                # PÁGINA 1: PORTADA, MAPA DE PISTA GENERAL Y OBSERVACIONES POSICIONALES
+                # PÁGINA 1
                 pdf.add_page()
                 pdf.set_font("Helvetica", 'B', 18)
                 pdf.cell(190, 10, text=limpiar_texto("INFORME TACTICO Y DE SCOUTING"), new_x="LMARGIN", new_y="NEXT", align='C')
@@ -501,7 +499,6 @@ with tab4:
                 pdf.ln(2)
                 
                 with tempfile.TemporaryDirectory() as tmpdir:
-                    # Mapa Pista General
                     fig_pista_pdf = dibujar_pista(df_puntos=df_pdf, modo="calor")
                     fig_pista_pdf.update_layout(paper_bgcolor="white", plot_bgcolor="#0f172a")
                     img_pista_path = os.path.join(tmpdir, "mapa_pista.png")
@@ -512,12 +509,10 @@ with tab4:
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(3)
                     
-                    # BLOQUE DE OBSERVACIONES: UNA DEBAJO DE LA OTRA
                     pdf.set_font("Helvetica", 'B', 11)
                     pdf.cell(190, 6, text=limpiar_texto("Observaciones Posicionales:"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(1)
                     
-                    # Bloque 1: Ataque Posicional
                     pdf.set_font("Helvetica", 'B', 10)
                     pdf.cell(190, 6, text=limpiar_texto("Ataque Posicional:"), border=1, new_x="LMARGIN", new_y="NEXT")
                     pdf.set_font("Helvetica", size=9)
@@ -527,7 +522,6 @@ with tab4:
                     pdf.multi_cell(190, 5, text=limpiar_texto(nota_ataque), border=1)
                     pdf.ln(3)
                     
-                    # Bloque 2: Defensa Posicional
                     pdf.set_font("Helvetica", 'B', 10)
                     pdf.cell(190, 6, text=limpiar_texto("Defensa Posicional:"), border=1, new_x="LMARGIN", new_y="NEXT")
                     pdf.set_font("Helvetica", size=9)
@@ -536,13 +530,12 @@ with tab4:
                         nota_defensa = "Sin observaciones registradas."
                     pdf.multi_cell(190, 5, text=limpiar_texto(nota_defensa), border=1)
                     
-                    # PÁGINA 2: GRÁFICOS GENERALES (BARRAS HORIZONTALES)
+                    # PÁGINA 2
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("2. Analisis de Efectividad General y Distribucion"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(2)
                     
-                    # 1. Efectividad Global
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
                     df_res = df_res.sort_values(by="Cantidad", ascending=True)
@@ -583,7 +576,6 @@ with tab4:
                     img_res_path = os.path.join(tmpdir, "efectividad_general.png")
                     fig_res.write_image(img_res_path, width=900, height=480, scale=2)
                     
-                    # 2. Distribución Global por Elemento
                     df_elem = df_pdf["Elemento"].value_counts().reset_index()
                     df_elem.columns = ["Elemento", "Cantidad"]
                     df_elem = df_elem.sort_values(by="Cantidad", ascending=True)
@@ -628,7 +620,7 @@ with tab4:
                     pdf.image(img_res_path, x=15, y=30, w=180)
                     pdf.image(img_elem_path, x=15, y=145, w=180)
                     
-                    # PÁGINA 3 EN ADELANTE: DISPOSICIÓN VERTICAL
+                    # PÁGINAS INDIVIDUALES
                     elementos_unicos = [e for e in ELEMENTOS_LISTA if e in df_pdf["Elemento"].unique()]
                     
                     for idx, elem_nombre in enumerate(elementos_unicos):
@@ -640,7 +632,6 @@ with tab4:
                         
                         df_sub = df_pdf[df_pdf["Elemento"] == elem_nombre]
                         
-                        # 1. Mapa de Pista Grande
                         fig_pista_elem = dibujar_pista(df_puntos=df_sub, modo="calor")
                         fig_pista_elem.update_layout(
                             paper_bgcolor="white", 
@@ -651,7 +642,6 @@ with tab4:
                         img_pista_sub_path = os.path.join(tmpdir, f"pista_sub_{idx}.png")
                         fig_pista_elem.write_image(img_pista_sub_path, width=1000, height=480, scale=2)
                         
-                        # 2. Gráfico de BARRAS de Efectividad específico
                         df_sub_counts = df_sub["Resultado"].value_counts().reset_index()
                         df_sub_counts.columns = ["Resultado", "Cantidad"]
                         df_sub_counts = df_sub_counts.sort_values(by="Cantidad", ascending=True)
@@ -690,7 +680,6 @@ with tab4:
                         img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
                         fig_sub.write_image(img_sub_path, width=900, height=450, scale=2)
                         
-                        # RENDERIZADO VERTICAL
                         y_pista = pdf.get_y()
                         pdf.image(img_pista_sub_path, x=20, y=y_pista, w=170)
                         
@@ -708,7 +697,7 @@ with tab4:
                             
                         pdf.multi_cell(190, 6, text=limpiar_texto(nota_texto), border=1)
 
-                    # PÁGINA FINAL: TABLA DETALLADA DE REGISTROS
+                    # PÁGINA FINAL
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("4. Tabla Registro Detallado de Acciones"), new_x="LMARGIN", new_y="NEXT")
