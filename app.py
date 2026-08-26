@@ -18,6 +18,18 @@ def limpiar_texto(texto):
     texto_normalizado = unicodedata.normalize('NFKD', texto).encode('latin-1', 'ignore').decode('latin-1')
     return texto_normalizado
 
+# Lista global de elementos
+ELEMENTOS_LISTA = [
+    "Córner", 
+    "Banda", 
+    "Contraataque", 
+    "Falta Directa", 
+    "Doble Penalti", 
+    "Penalti", 
+    "Juego Continuo / Tiro",
+    "5x4 / Portero Jugador"
+]
+
 # 1. Base de datos local de acciones
 if "datos" not in st.session_state:
     st.session_state.datos = pd.DataFrame(columns=[
@@ -51,6 +63,7 @@ AURA_MAP = {
     "Pérdida / Bloqueado": "rgba(251, 146, 60, 0.3)"
 }
 
+# Mapeo de formas compatible 100% con Plotly
 SYMBOL_ELEMENTO_MAP = {
     "Córner": "triangle-up",
     "Banda": "diamond",
@@ -59,7 +72,7 @@ SYMBOL_ELEMENTO_MAP = {
     "Doble Penalti": "circle-open-dot",
     "Penalti": "circle-open-dot",
     "Juego Continuo / Tiro": "circle",
-    "5x4 / Portero Jugador": "star"
+    "5x4 / Portero Jugador": "hexagram"
 }
 
 SIZE_MAP = {
@@ -68,17 +81,6 @@ SIZE_MAP = {
     "Remate Fuera": 11,
     "Pérdida / Bloqueado": 11
 }
-
-ELEMENTOS_LISTA = [
-    "Córner", 
-    "Banda", 
-    "Contraataque", 
-    "Falta Directa", 
-    "Doble Penalti", 
-    "Penalti", 
-    "Juego Continuo / Tiro",
-    "5x4 / Portero Jugador"
-]
 
 def dibujar_pista(df_puntos=None, modo="limpio"):
     fig = go.Figure()
@@ -122,7 +124,7 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
         for res in ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"]:
             df_sub = df_puntos[df_puntos["Resultado"] == res]
             if not df_sub.empty:
-                simbolos = [SYMBOL_ELEMENTO_MAP.get(elem, "circle") for elem in df_sub["Elemento"]]
+                simbolos = [SYMBOL_ELEMENTO_MAP.get(str(elem), "circle") for elem in df_sub["Elemento"]]
                 
                 fig.add_trace(go.Scatter(
                     x=df_sub["X"],
@@ -253,13 +255,13 @@ with tab1:
             elif pos_y > 13.5: zona_auto = "Izquierda"
             
             nueva_accion = pd.DataFrame([{
-                "Rival": rival,
+                "Rival": str(rival),
                 "Jornada": f"Partido {jornada}",
-                "Elemento": elemento,
+                "Elemento": str(elemento),
                 "Zona": zona_auto,
-                "Resultado": resultado,
-                "X": pos_x,
-                "Y": pos_y
+                "Resultado": str(resultado),
+                "X": float(pos_x),
+                "Y": float(pos_y)
             }])
             
             st.session_state.datos = pd.concat([st.session_state.datos, nueva_accion], ignore_index=True)
@@ -275,7 +277,7 @@ with tab2:
             rivales_disponibles = df_totales["Rival"].unique().tolist()
             rival_sel = st.selectbox("Seleccionar Rival:", rivales_disponibles, key="mapa_rival")
         with col_filt:
-            elementos_disp = ["Todos"] + df_totales["Elemento"].unique().tolist()
+            elementos_disp = ["Todos"] + list(df_totales["Elemento"].unique())
             filtro_elem = st.selectbox("Filtrar por Elemento de Juego:", elementos_disp, key="filtro_elem")
             
         df_mapa = df_totales[df_totales["Rival"] == rival_sel]
@@ -292,7 +294,7 @@ with tab2:
             * 🔷 **Diamante:** Banda
             * ✖️ **Cruz:** Contraataque
             * 🎯 **Diana (círculo con punto):** Falta / Penalti
-            * ⭐ **Estrella:** 5x4 / Portero Jugador
+            * ✴️ **Estrella (Hexagrama):** 5x4 / Portero Jugador
             * 🟡🔴⚪ **Círculo:** Juego Continuo / Tiro Libre
             """)
         else:
