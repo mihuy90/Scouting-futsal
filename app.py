@@ -2,90 +2,118 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+import plotly.express as px
 from fpdf import FPDF
-import io
+import base64
 
 # -----------------------------------------------------------------------------
-# 1. CONFIGURACIÓN DE LA PÁGINA
+# 1. CONFIGURACIÓN Y ESTILOS CSS
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Scouting Futsal - Análisis Táctico",
+    page_title="Scouting Futsal Pro - Análisis Táctico",
     page_icon="⚽",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
+# Estilos CSS personalizados para interfaz profesional
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; }
+    .stButton>button {
+        border-radius: 8px;
+        font-weight: bold;
+    }
+    .metric-card {
+        background-color: #1e222d;
+        border-radius: 10px;
+        padding: 15px;
+        border: 1px solid #2e3440;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # -----------------------------------------------------------------------------
-# 2. INICIALIZACIÓN DE LA SESIÓN (STATE)
+# 2. INICIALIZACIÓN DE VARIABLES DE SESIÓN (SESSION STATE)
 # -----------------------------------------------------------------------------
 if "datos" not in st.session_state:
     st.session_state.datos = pd.DataFrame(columns=[
-        "Jornada", "Rival", "Fase", "Elemento", "Resultado", "X", "Y"
+        "Jornada", "Rival", "Fase", "Elemento", "Resultado", "X", "Y", "Jugador", "Minuto", "Notas"
     ])
 
+if "plantilla" not in st.session_state:
+    st.session_state.plantilla = ["Jugador 1", "Jugador 2", "Jugador 3", "Jugador 4", "Jugador 5"]
+
 # -----------------------------------------------------------------------------
-# 3. FUNCIONES AUXILIARES Y DIBUJO DE PISTA
+# 3. MOTOR GRÁFICO - PISTA DE FÚTBOL SALA (40x20m)
 # -----------------------------------------------------------------------------
-def dibujar_pista(df_puntos=None, modo="puntos"):
-    """
-    Dibuja la pista de fútbol sala (40x20m) con Plotly.
-    Modos: 'puntos' (para registro/marcadore) o 'calor' (mapa de densidad).
-    """
+def dibujar_pista_futsal(df_puntos=None, modo="puntos", titulo=""):
     fig = go.Figure()
 
-    # Dimensiones pista
     ANCHO, ALTO = 40, 20
 
-    # Fondo y líneas principales
+    # Superficie de juego
     fig.add_shape(type="rect", x0=0, y0=0, x1=ANCHO, y1=ALTO,
-                  line=dict(color="white", width=2), fillcolor="#1e3d59")
+                  line=dict(color="white", width=2), fillcolor="#004d25")
     
-    # Línea central
+    # Línea de medio campo
     fig.add_shape(type="line", x0=ANCHO/2, y0=0, x1=ANCHO/2, y1=ALTO,
                   line=dict(color="white", width=2))
     
-    # Círculo central
+    # Círculo central (3m de radio)
     fig.add_shape(type="circle", x0=ANCHO/2 - 3, y0=ALTO/2 - 3, x1=ANCHO/2 + 3, y1=ALTO/2 + 3,
                   line=dict(color="white", width=2))
 
-    # Áreas de 6 metros
-    # Izquierda
+    # Áreas de 6m
     fig.add_shape(type="path",
                   path=f"M 0,{ALTO/2 - 6} A 6 6 0 0 1 6,{ALTO/2} A 6 6 0 0 1 0,{ALTO/2 + 6}",
                   line=dict(color="white", width=2))
-    # Derecha
     fig.add_shape(type="path",
                   path=f"M {ANCHO},{ALTO/2 - 6} A 6 6 0 0 0 {ANCHO-6},{ALTO/2} A 6 6 0 0 0 {ANCHO},{ALTO/2 + 6}",
                   line=dict(color="white", width=2))
 
-    # Puntos de doble penalti (10m) y penalti (6m)
-    fig.add_trace(go.Scatter(x=[6, 10, 30, 34], y=[10, 10, 10, 10], mode="markers",
-                             marker=dict(color="white", size=4), showlegend=False, hoverinfo="skip"))
+    # Marcas de penalti (6m) y doble penalti (10m)
+    fig.add_trace(go.Scatter(
+        x=[6, 10, 30, 34], y=[10, 10, 10, 10], mode="markers",
+        marker=dict(color="white", size=5), showlegend=False, hoverinfo="skip"
+    ))
 
-    # DIBUJO DE DATOS
+    # Porterías
+    fig.add_shape(type="rect", x0=-1.5, y0=ALTO/2 - 1.5, x1=0, y1=ALTO/2 + 1.5,
+                  line=dict(color="white", width=2), fillcolor="rgba(255,255,255,0.2)")
+    fig.add_shape(type="rect", x0=ANCHO, y0=ALTO/2 - 1.5, x1=ANCHO + 1.5, y1=ALTO/2 + 1.5,
+                  line=dict(color="white", width=2), fillcolor="rgba(255,255,255,0.2)")
+
+    # REPRESENTACIÓN DE DATOS
     if df_puntos is not None and not df_puntos.empty:
         if modo == "calor":
             fig.add_trace(go.Histogram2dContour(
                 x=df_puntos["X"],
                 y=df_puntos["Y"],
-                colorscale="Hot",
-                reversescale=True,
+                colorscale="YlOrRd",
+                reversescale=False,
                 showscale=False,
-                ncontours=15,
-                opacity=0.6
+                ncontours=20,
+                opacity=0.65
             ))
-            # Puntos encima de la densidad
+            # Dibujar marcas numeradas encima del mapa de calor
             fig.add_trace(go.Scatter(
                 x=df_puntos["X"],
                 y=df_puntos["Y"],
-                mode="markers",
-                marker=dict(color="black", size=8, line=dict(color="white", width=1)),
-                text=df_puntos["Elemento"] + " - " + df_puntos["Resultado"],
-                hoverinfo="text+x+y",
+                mode="markers+text",
+                marker=dict(color="#00ffff", size=10, line=dict(color="black", width=1.5)),
+                text=[f"#{i}" for i in df_puntos.index],
+                textposition="top center",
+                textfont=dict(color="white", size=10),
+                hoverinfo="text",
+                hovertext=[
+                    f"ID: #{i} | {row['Jugador']}<br>{row['Elemento']} - {row['Resultado']}<br>Pos: ({row['X']}m, {row['Y']}m)"
+                    for i, row in df_puntos.iterrows()
+                ],
                 showlegend=False
             ))
         else:
-            # Modo puntos simples por resultado
-            colores = {"Gol": "green", "Parada": "blue", "Fuera": "red", "Bloqueado": "orange"}
+            colores = {"Gol": "#00ff00", "Parada": "#0099ff", "Fuera": "#ff3333", "Bloqueado": "#ff9900"}
             for res, color in colores.items():
                 df_sub = df_puntos[df_puntos["Resultado"] == res]
                 if not df_sub.empty:
@@ -94,210 +122,305 @@ def dibujar_pista(df_puntos=None, modo="puntos"):
                         y=df_sub["Y"],
                         mode="markers",
                         name=res,
-                        marker=dict(color=color, size=12, line=dict(color="black", width=1)),
-                        text=df_sub["Elemento"],
+                        marker=dict(color=color, size=13, line=dict(color="black", width=1)),
+                        text=[f"{r['Jugador']} ({r['Elemento']})" for _, r in df_sub.iterrows()],
                         hoverinfo="text"
                     ))
 
-    # Configuración de ejes y aspecto
-    fig.update_xaxes(range=[-1, ANCHO + 1], showgrid=False, zeroline=False, visible=False)
-    fig.update_yaxes(range=[-1, ALTO + 1], showgrid=False, zeroline=False, visible=False, scaleanchor="x", scaleratio=1)
+    fig.update_xaxes(range=[-3, ANCHO + 3], showgrid=False, zeroline=False, visible=False)
+    fig.update_yaxes(range=[-2, ALTO + 2], showgrid=False, zeroline=False, visible=False, scaleanchor="x", scaleratio=1)
     
     fig.update_layout(
-        margin=dict(l=10, r=10, t=10, b=10),
+        title=dict(text=titulo, font=dict(color="white", size=16)),
+        margin=dict(l=5, r=5, t=30, b=5),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1, font=dict(color="white"))
     )
     return fig
 
+# -----------------------------------------------------------------------------
+# 4. GENERADOR DE REPORTES COMPLETO EN PDF
+# -----------------------------------------------------------------------------
+class PDFReport(FPDF):
+    def header(self):
+        self.set_font("Arial", "B", 15)
+        self.cell(0, 10, "INFORME TÁCTICO DE SCOUTING - FÚTBOL SALA", ln=True, align="C")
+        self.set_font("Arial", "I", 10)
+        self.cell(0, 5, "Análisis de rendimiento y mapas de tiro", ln=True, align="C")
+        self.line(10, 25, 200, 25)
+        self.ln(10)
 
-def generar_pdf(df):
-    """Genera un reporte básico en PDF."""
-    pdf = FPDF()
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Arial", "I", 8)
+        self.cell(0, 10, f"Página {self.page_no()}", align="C")
+
+def generar_pdf_completo(df):
+    pdf = PDFReport()
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "Informe de Scouting - Fútbol Sala", ln=True, align='C')
-    pdf.ln(10)
     
-    pdf.set_font("Arial", size=12)
-    pdf.cell(0, 10, f"Total de acciones registradas: {len(df)}", ln=True)
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 8, "1. Resumen General del Partido", ln=True)
+    pdf.set_font("Arial", size=10)
+    
+    total_tiros = len(df)
+    goles = len(df[df["Resultado"] == "Gol"])
+    efectividad = (goles / total_tiros * 100) if total_tiros > 0 else 0
+    
+    pdf.cell(0, 6, f"Total de acciones registradas: {total_tiros}", ln=True)
+    pdf.cell(0, 6, f"Goles marcados: {goles}", ln=True)
+    pdf.cell(0, 6, f"Efectividad de tiro: {efectividad:.1f}%", ln=True)
     pdf.ln(5)
+
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 8, "2. Desglose por Resultado", ln=True)
+    pdf.set_font("Arial", size=10)
     
-    # Resumen por Resultado
-    resumen = df["Resultado"].value_counts()
-    for k, v in resumen.items():
-        pdf.cell(0, 8, f"- {k}: {v}", ln=True)
+    resumen_res = df["Resultado"].value_counts()
+    for k, v in resumen_res.items():
+        pdf.cell(0, 6, f" - {k}: {v} ({v/total_tiros*100:.1f}%)", ln=True)
+        
+    pdf.ln(5)
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 8, "3. Registro Detallado de Acciones", ln=True)
+    pdf.set_font("Arial", "B", 9)
+    
+    # Encabezados de tabla
+    pdf.cell(20, 6, "Min", 1)
+    pdf.cell(35, 6, "Jugador", 1)
+    pdf.cell(40, 6, "Fase", 1)
+    pdf.cell(45, 6, "Elemento", 1)
+    pdf.cell(30, 6, "Resultado", 1)
+    pdf.ln()
+    
+    pdf.set_font("Arial", size=8)
+    for _, row in df.iterrows():
+        pdf.cell(20, 5, str(row["Minuto"]), 1)
+        pdf.cell(35, 5, str(row["Jugador"])[:18], 1)
+        pdf.cell(40, 5, str(row["Fase"])[:20], 1)
+        pdf.cell(45, 5, str(row["Elemento"])[:22], 1)
+        pdf.cell(30, 5, str(row["Resultado"]), 1)
+        pdf.ln()
         
     return pdf.output(dest='S').encode('latin-1')
 
 # -----------------------------------------------------------------------------
-# 4. ESTRUCTURA DE LA APLICACIÓN (PESTAÑAS)
+# 5. BARRA LATERAL (CONFIGURACIÓN DE PLANTILLA)
+# -----------------------------------------------------------------------------
+with st.sidebar:
+    st.image("https://img.icons8.com/color/96/futsal.png", width=60)
+    st.title("Configuración")
+    
+    st.subheader("👥 Plantilla de Jugadores")
+    nuevos_jugadores = st.text_area(
+        "Introduce la lista de jugadores (uno por línea):",
+        value="\n".join(st.session_state.plantilla),
+        height=150
+    )
+    st.session_state.plantilla = [j.strip() for j in nuevos_jugadores.split("\n") if j.strip()]
+    
+    st.write("---")
+    st.markdown("**Versión:** 2.5 Pro")
+    st.markdown("**Motor gráfico:** Plotly Futsal Engine")
+
+# -----------------------------------------------------------------------------
+# 6. PANEL PRINCIPAL Y PESTAÑAS DE TRABAJO
 # -----------------------------------------------------------------------------
 st.title("⚽ Scouting & Análisis Táctico de Fútbol Sala")
 
-tab1, tab2, tab3 = st.tabs(["📌 Registrar Acciones", "🔥 Mapa de Calor y Borrado", "📊 Informe y PDF"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📌 Registro de Acciones", 
+    "🔥 Mapas de Calor y Borrado", 
+    "📈 Estadísticas Avanzadas", 
+    "📄 Reportes y PDF"
+])
 
 # -----------------------------------------------------------------------------
-# PESTAÑA 1: REGISTRO DE ACCIONES
+# PESTAÑA 1: REGISTRO DE ACCIONES EN TIEMPO REAL
 # -----------------------------------------------------------------------------
 with tab1:
-    st.header("Registrar Nueva Acción en Pista")
+    st.header("Registrar Acción de Juego")
     
-    col_inputs, col_pista = st.columns([1, 2])
+    col_form, col_vis = st.columns([1, 2])
     
-    with col_inputs:
-        jornada = st.text_input("Jornada / Partido:", value="Jornada 1")
+    with col_form:
+        jornada = st.text_input("Partido / Jornada:", value="Jornada 1")
         rival = st.text_input("Rival:", value="Rival A")
-        fase = st.selectbox("Fase de Juego:", ["Ataque Posicional", "Contraataque", "Balón Parado", "Portero Jugador"])
-        elemento = st.selectbox("Elemento Táctico:", ["Tiro exterior", "1vs1", "Juego con Pívot", "Estrategia", "Transición"])
-        resultado = st.selectbox("Resultado:", ["Gol", "Parada", "Fuera", "Bloqueado"])
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            jugador = st.selectbox("Jugador:", st.session_state.plantilla)
+            minuto = st.number_input("Minuto:", min_value=1, max_value=50, value=10)
+        with c2:
+            fase = st.selectbox("Fase de Juego:", ["Ataque Posicional", "Contraataque", "Balón Parado", "Portero Jugador"])
+            elemento = st.selectbox("Elemento Táctico:", ["Tiro exterior", "1vs1", "Juego con Pívot", "Estrategia", "Transición", "Rechace"])
+            
+        resultado = st.selectbox("Resultado de la acción:", ["Gol", "Parada", "Fuera", "Bloqueado"])
+        notas = st.text_input("Notas adicionales:", value="")
         
         st.write("---")
-        st.markdown("**Coordenadas de la Acción (metros):**")
-        pos_x = st.slider("Posición X (Largo: 0 a 40m):", 0.0, 40.0, 20.0, step=0.5)
-        pos_y = st.slider("Posición Y (Ancho: 0 a 20m):", 0.0, 20.0, 10.0, step=0.5)
+        st.markdown("**Ubicación en Pista (metros):**")
+        pos_x = st.slider("Coordenada X (Largo 0-40m):", 0.0, 40.0, 20.0, step=0.5)
+        pos_y = st.slider("Coordenada Y (Ancho 0-20m):", 0.0, 20.0, 10.0, step=0.5)
         
-        if st.button("💾 Guardar Acción", type="primary", use_container_width=True):
-            nueva_fila = pd.DataFrame([{
+        if st.button("💾 Registrar Acción", type="primary", use_container_width=True):
+            nueva_accion = pd.DataFrame([{
                 "Jornada": jornada,
                 "Rival": rival,
                 "Fase": fase,
                 "Elemento": elemento,
                 "Resultado": resultado,
                 "X": pos_x,
-                "Y": pos_y
+                "Y": pos_y,
+                "Jugador": jugador,
+                "Minuto": minuto,
+                "Notas": notas
             }])
-            st.session_state.datos = pd.concat([st.session_state.datos, nueva_fila], ignore_index=True)
+            st.session_state.datos = pd.concat([st.session_state.datos, nueva_accion], ignore_index=True)
             st.success("¡Acción guardada correctamente!")
 
-    with col_pista:
-        st.subheader("Ubicación previa en la pista")
-        # Mostrar vista previa con el punto actual
-        df_preview = pd.DataFrame([{"X": pos_x, "Y": pos_y, "Resultado": resultado, "Elemento": elemento}])
-        fig_preview = dibujar_pista(df_preview, modo="puntos")
-        st.plotly_chart(fig_preview, use_container_width=True)
+    with col_vis:
+        st.subheader("Previsualización de Posición")
+        df_prev = pd.DataFrame([{"X": pos_x, "Y": pos_y, "Resultado": resultado, "Elemento": elemento, "Jugador": jugador}])
+        fig_prev = dibujar_pista_futsal(df_prev, modo="puntos", titulo="Ubicación exacta")
+        st.plotly_chart(fig_prev, use_container_width=True)
 
 # -----------------------------------------------------------------------------
-# PESTAÑA 2: MAPA DE CALOR Y ELIMINACIÓN DE PUNTOS
+# PESTAÑA 2: MAPAS DE CALOR Y GESTOR INTEGRADO DE BORRADO
 # -----------------------------------------------------------------------------
 with tab2:
-    st.header("🔥 Mapa de Densidad y Gestor de Registros")
-    df_totales = st.session_state.datos
+    st.header("🔥 Mapas de Densidad Táctica y Borrado")
+    
+    if not st.session_state.datos.empty:
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            rivales = ["Todos"] + list(st.session_state.datos["Rival"].unique())
+            riv_sel = st.selectbox("Filtrar por Rival:", rivales, key="f_riv")
+        with col_f2:
+            elementos = ["Todos"] + list(st.session_state.datos["Elemento"].unique())
+            elem_sel = st.selectbox("Filtrar por Elemento:", elementos, key="f_elem")
+        with col_f3:
+            jugadores = ["Todos"] + list(st.session_state.datos["Jugador"].unique())
+            jug_sel = st.selectbox("Filtrar por Jugador:", jugadores, key="f_jug")
+            
+        df_filtrado = st.session_state.datos.copy()
+        if riv_sel != "Todos":
+            df_filtrado = df_filtrado[df_filtrado["Rival"] == riv_sel]
+        if elem_sel != "Todos":
+            df_filtrado = df_filtrado[df_filtrado["Elemento"] == elem_sel]
+        if jug_sel != "Todos":
+            df_filtrado = df_filtrado[df_filtrado["Jugador"] == jug_sel]
 
-    if not df_totales.empty:
-        col_riv, col_filt = st.columns([2, 2])
-        with col_riv:
-            rivales_disponibles = df_totales["Rival"].unique().tolist()
-            rival_sel = st.selectbox("Seleccionar Rival:", rivales_disponibles, key="mapa_rival")
-        with col_filt:
-            elementos_disp = ["Todos"] + list(df_totales["Elemento"].unique())
-            filtro_elem = st.selectbox("Filtrar por Elemento:", elementos_disp, key="filtro_elem")
+        if not df_filtrado.empty:
+            fig_calor = dibujar_pista_futsal(df_filtrado, modo="calor", titulo="Concentración de Zonas de Tiro")
+            st.plotly_chart(fig_calor, use_container_width=True)
             
-        df_mapa = df_totales[df_totales["Rival"] == rival_sel]
-        if filtro_elem != "Todos":
-            df_mapa = df_mapa[df_mapa["Elemento"] == filtro_elem]
-        
-        if not df_mapa.empty:
-            st.info("💡 **Para borrar un punto:** Haz clic sobre él en la pista o selecciónalo directamente en el menú de abajo.")
-            
-            fig_calor = dibujar_pista(df_puntos=df_mapa, modo="calor")
-            
-            # Gráfico interactivo con captura de eventos de selección
-            evento_mapa = st.plotly_chart(
-                fig_calor, 
-                use_container_width=True, 
-                on_select="rerun", 
-                selection_mode="points", 
-                key="pista_borrado"
-            )
-            
-            # --- BORRADO INTERACTIVO ---
+            # --- SECCIÓN DE BORRADO INTEGRADA ---
             st.markdown("---")
-            st.subheader("🗑️ Eliminar Puntos de la Pista")
-            
-            col_del1, col_del2 = st.columns([3, 1])
-            indice_a_borrar = None
-            
-            # Detectar si el usuario hizo clic en un punto del gráfico Plotly
-            if evento_mapa and "points" in evento_mapa.get("selection", {}) and len(evento_mapa["selection"]["points"]) > 0:
-                punto_sel = evento_mapa["selection"]["points"][0]
-                x_sel, y_sel = punto_sel.get("x"), punto_sel.get("y")
-                
-                # Búsqueda de coincidencia por coordenadas aproximadas
-                coincidencias = st.session_state.datos[
-                    (st.session_state.datos["Rival"] == rival_sel) & 
-                    (np.isclose(st.session_state.datos["X"], x_sel, atol=0.4)) & 
-                    (np.isclose(st.session_state.datos["Y"], y_sel, atol=0.4))
-                ]
-                if not coincidencias.empty:
-                    indice_a_borrar = coincidencias.index[0]
+            st.subheader("🗑️ Gestor de Borrado de Puntos de la Pista")
+            st.caption("Los ID con `#` coinciden con los números cian que ves en el mapa de arriba.")
 
-            with col_del1:
-                opciones_puntos = {
-                    idx: f"ID {idx} | {row['Elemento']} - {row['Resultado']} (X: {row['X']}m, Y: {row['Y']}m) [{row['Jornada']}]"
-                    for idx, row in df_mapa.iterrows()
-                }
-                
-                idx_defecto = list(opciones_puntos.keys()).index(indice_a_borrar) if indice_a_borrar in opciones_puntos else 0
-                
-                id_seleccionado = st.selectbox(
-                    "Punto seleccionado para eliminar:",
-                    options=list(opciones_puntos.keys()),
-                    format_func=lambda x: opciones_puntos[x],
-                    index=idx_defecto,
-                    key="selector_borrado"
-                )
-
-            with col_del2:
-                st.write("")
-                st.write("")
-                if st.button("❌ Borrar Punto", type="primary", use_container_width=True):
-                    st.session_state.datos = st.session_state.datos.drop(index=id_seleccionado).reset_index(drop=True)
-                    st.success("Registro eliminado con éxito.")
-                    st.rerun()
+            # Lista interactiva con botón de borrado directo
+            for idx, row in df_filtrado.iterrows():
+                with st.container():
+                    col_info, col_btn = st.columns([5, 1])
+                    with col_info:
+                        st.markdown(
+                            f"🔹 **ID #{idx}** | **{row['Jugador']}** (Min {row['Minuto']}') | "
+                            f"**{row['Elemento']}** - *{row['Resultado']}* | "
+                            f"Ubicación: (X: {row['X']}m, Y: {row['Y']}m) | Rival: {row['Rival']}"
+                        )
+                    with col_btn:
+                        if st.button("🗑️ Eliminar", key=f"btn_delete_{idx}", type="secondary"):
+                            st.session_state.datos = st.session_state.datos.drop(index=idx).reset_index(drop=True)
+                            st.success(f"Registro #{idx} eliminado con éxito.")
+                            st.rerun()
+                    st.divider()
 
         else:
-            st.warning("No hay registros disponibles para los filtros seleccionados.")
+            st.warning("No hay registros que coincidan con los filtros aplicados.")
     else:
-        st.info("Aún no se ha registrado ninguna acción en la Pestaña 1.")
+        st.info("Aún no se han registrado datos.")
 
 # -----------------------------------------------------------------------------
-# PESTAÑA 3: RESUMEN DE DATOS Y EXPORTACIÓN
+# PESTAÑA 3: ESTADÍSTICAS AVANZADAS Y GRÁFICOS
 # -----------------------------------------------------------------------------
 with tab3:
-    st.header("📊 Tabla de Datos e Informes")
+    st.header("📈 Análisis Estadístico Avanzado")
+    
+    if not st.session_state.datos.empty:
+        m1, m2, m3, m4 = st.columns(4)
+        total_tiros = len(st.session_state.datos)
+        goles = len(st.session_state.datos[st.session_state.datos["Resultado"] == "Gol"])
+        paradas = len(st.session_state.datos[st.session_state.datos["Resultado"] == "Parada"])
+        efectividad = (goles / total_tiros * 100) if total_tiros > 0 else 0
+        
+        m1.metric("Total Tiros", total_tiros)
+        m2.metric("Goles", goles)
+        m3.metric("Paradas Rival", paradas)
+        m4.metric("Efectividad", f"{efectividad:.1f}%")
+        
+        st.write("---")
+        g1, g2 = st.columns(2)
+        
+        with g1:
+            st.subheader("Efectividad por Fase de Juego")
+            fig_fase = px.histogram(
+                st.session_state.datos, x="Fase", color="Resultado", 
+                barmode="group", color_discrete_sequence=px.colors.qualitative.Set2
+            )
+            fig_fase.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="white")
+            st.plotly_chart(fig_fase, use_container_width=True)
+            
+        with g2:
+            st.subheader("Acciones por Jugador")
+            fig_jug = px.bar(
+                st.session_state.datos["Jugador"].value_counts().reset_index(),
+                x="Jugador", y="count", color="Jugador"
+            )
+            fig_jug.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="white")
+            st.plotly_chart(fig_jug, use_container_width=True)
+
+    else:
+        st.info("Registra acciones para generar analíticas automáticas.")
+
+# -----------------------------------------------------------------------------
+# PESTAÑA 4: REPORTE Y EXPORTACIÓN COMPLETA
+# -----------------------------------------------------------------------------
+with tab4:
+    st.header("📊 Exportación y Tabla de Datos")
     
     if not st.session_state.datos.empty:
         st.dataframe(st.session_state.datos, use_container_width=True)
         
-        col_down1, col_down2 = st.columns(2)
+        c_exp1, c_exp2 = st.columns(2)
         
-        with col_down1:
-            # Descargar CSV
-            csv = st.session_state.datos.to_csv(index=False).encode('utf-8')
+        with c_exp1:
+            csv_data = st.session_state.datos.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="📥 Descargar Datos en CSV",
-                data=csv,
-                file_name="scouting_futsal.csv",
+                label="📥 Descargar Base de Datos (CSV)",
+                data=csv_data,
+                file_name="scouting_futsal_datos.csv",
                 mime="text/csv",
                 use_container_width=True
             )
             
-        with col_down2:
-            # Descargar PDF
-            pdf_bytes = generar_pdf(st.session_state.datos)
+        with c_exp2:
+            pdf_bytes = generar_pdf_completo(st.session_state.datos)
             st.download_button(
-                label="📄 Exportar Informe PDF",
+                label="📄 Descargar Informe Completo (PDF)",
                 data=pdf_bytes,
-                file_name="informe_scouting.pdf",
+                file_name="informe_scouting_futsal.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
             
         st.write("---")
-        if st.button("⚠️ Borrar TODOS los datos acumulados"):
-            st.session_state.datos = pd.DataFrame(columns=["Jornada", "Rival", "Fase", "Elemento", "Resultado", "X", "Y"])
+        if st.button("⚠️ Resetear y borrar TODOS los datos acumulados", type="primary"):
+            st.session_state.datos = pd.DataFrame(columns=[
+                "Jornada", "Rival", "Fase", "Elemento", "Resultado", "X", "Y", "Jugador", "Minuto", "Notas"
+            ])
             st.rerun()
     else:
-        st.info("No hay datos para mostrar.")
+        st.info("No hay datos cargados para exportar.")
