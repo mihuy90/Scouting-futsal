@@ -123,10 +123,7 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
     if modo == "calor" and df_puntos is not None and not df_puntos.empty:
         df_render = df_puntos.copy()
         
-        # Fijamos la semilla para estabilidad visual
         np.random.seed(42)
-        
-        # AJUSTE: Ampliamos a +-0.35 metros (~35 cm) para separar los marcadores un chis más
         df_render["X_render"] = df_render["X"] + np.random.uniform(-0.35, 0.35, size=len(df_render))
         df_render["Y_render"] = df_render["Y"] + np.random.uniform(-0.35, 0.35, size=len(df_render))
 
@@ -135,7 +132,6 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
             if not df_sub.empty:
                 simbolos = [SYMBOL_ELEMENTO_MAP.get(str(elem), "circle") for elem in df_sub["Elemento"]]
                 
-                # Aura
                 fig.add_trace(go.Scatter(
                     x=df_sub["X_render"],
                     y=df_sub["Y_render"],
@@ -149,7 +145,6 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
                     showlegend=False
                 ))
 
-                # Marcador Principal
                 fig.add_trace(go.Scatter(
                     x=df_sub["X_render"],
                     y=df_sub["Y_render"],
@@ -349,17 +344,20 @@ with tab3:
             df_res_counts = df_izq["Resultado"].value_counts().reset_index()
             df_res_counts.columns = ["Resultado", "Cantidad"]
             
-            fig_pie_res = px.pie(
-                df_res_counts, 
-                values="Cantidad", 
-                names="Resultado",
-                color="Resultado",
-                color_discrete_map=COLOR_MAP,
-                hole=0.45
-            )
-            fig_pie_res.update_traces(textposition='inside', textinfo='percent+label+value')
-            fig_pie_res.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
-            st.plotly_chart(fig_pie_res, use_container_width=True)
+            if not df_res_counts.empty:
+                fig_pie_res = px.pie(
+                    df_res_counts, 
+                    values="Cantidad", 
+                    names="Resultado",
+                    color="Resultado",
+                    color_discrete_map=COLOR_MAP,
+                    hole=0.45
+                )
+                fig_pie_res.update_traces(textposition='inside', textinfo='percent+label+value')
+                fig_pie_res.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
+                st.plotly_chart(fig_pie_res, use_container_width=True)
+            else:
+                st.info("Sin datos para este filtro.")
             
         with col_pie2:
             st.subheader("🔍 Analizar Elemento Específico")
@@ -370,32 +368,34 @@ with tab3:
                 df_elem_counts = df_rival2["Elemento"].value_counts().reset_index()
                 df_elem_counts.columns = ["Elemento", "Cantidad"]
                 
-                fig_pie_elem = px.pie(
-                    df_elem_counts, 
-                    values="Cantidad", 
-                    names="Elemento",
-                    color_discrete_sequence=px.colors.qualitative.Pastel,
-                    hole=0.45
-                )
-                fig_pie_elem.update_traces(textposition='inside', textinfo='percent+label+value')
-                fig_pie_elem.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
-                st.plotly_chart(fig_pie_elem, use_container_width=True)
+                if not df_elem_counts.empty:
+                    fig_pie_elem = px.pie(
+                        df_elem_counts, 
+                        values="Cantidad", 
+                        names="Elemento",
+                        color_discrete_sequence=px.colors.qualitative.Pastel,
+                        hole=0.45
+                    )
+                    fig_pie_elem.update_traces(textposition='inside', textinfo='percent+label+value')
+                    fig_pie_elem.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
+                    st.plotly_chart(fig_pie_elem, use_container_width=True)
             else:
                 df_sub_elem = df_rival2[df_rival2["Elemento"] == elem_filtrado_pie]
                 df_sub_counts = df_sub_elem["Resultado"].value_counts().reset_index()
                 df_sub_counts.columns = ["Resultado", "Cantidad"]
                 
-                fig_pie_elem = px.pie(
-                    df_sub_counts, 
-                    values="Cantidad", 
-                    names="Resultado",
-                    color="Resultado",
-                    color_discrete_map=COLOR_MAP,
-                    hole=0.45
-                )
-                fig_pie_elem.update_traces(textposition='inside', textinfo='percent+label+value')
-                fig_pie_elem.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
-                st.plotly_chart(fig_pie_elem, use_container_width=True)
+                if not df_sub_counts.empty:
+                    fig_pie_elem = px.pie(
+                        df_sub_counts, 
+                        values="Cantidad", 
+                        names="Resultado",
+                        color="Resultado",
+                        color_discrete_map=COLOR_MAP,
+                        hole=0.45
+                    )
+                    fig_pie_elem.update_traces(textposition='inside', textinfo='percent+label+value')
+                    fig_pie_elem.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
+                    st.plotly_chart(fig_pie_elem, use_container_width=True)
 
         st.markdown("---")
         st.subheader("📋 Registro Detallado")
@@ -466,7 +466,7 @@ with tab4:
                 pdf = FPDF()
                 pdf.set_auto_page_break(auto=True, margin=15)
                 
-                # PÁGINA 1: PORTADA, MAPA DE PISTA GENERAL Y OBSERVACIONES POSICIONALES
+                # PÁGINA 1
                 pdf.add_page()
                 pdf.set_font("Helvetica", 'B', 18)
                 pdf.cell(190, 10, text=limpiar_texto("INFORME TACTICO Y DE SCOUTING"), new_x="LMARGIN", new_y="NEXT", align='C')
@@ -488,12 +488,10 @@ with tab4:
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(3)
                     
-                    # BLOQUE DE OBSERVACIONES: UNA DEBAJO DE LA OTRA
                     pdf.set_font("Helvetica", 'B', 11)
                     pdf.cell(190, 6, text=limpiar_texto("Observaciones Posicionales:"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(1)
                     
-                    # Bloque 1: Ataque Posicional
                     pdf.set_font("Helvetica", 'B', 10)
                     pdf.cell(190, 6, text=limpiar_texto("Ataque Posicional:"), border=1, new_x="LMARGIN", new_y="NEXT")
                     pdf.set_font("Helvetica", size=9)
@@ -503,7 +501,6 @@ with tab4:
                     pdf.multi_cell(190, 5, text=limpiar_texto(nota_ataque), border=1)
                     pdf.ln(3)
                     
-                    # Bloque 2: Defensa Posicional
                     pdf.set_font("Helvetica", 'B', 10)
                     pdf.cell(190, 6, text=limpiar_texto("Defensa Posicional:"), border=1, new_x="LMARGIN", new_y="NEXT")
                     pdf.set_font("Helvetica", size=9)
@@ -512,13 +509,12 @@ with tab4:
                         nota_defensa = "Sin observaciones registradas."
                     pdf.multi_cell(190, 5, text=limpiar_texto(nota_defensa), border=1)
                     
-                    # PÁGINA 2: GRÁFICOS GENERALES (BARRAS HORIZONTALES)
+                    # PÁGINA 2
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("2. Analisis de Efectividad General y Distribucion"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(2)
                     
-                    # 1. Efectividad Global
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
                     df_res = df_res.sort_values(by="Cantidad", ascending=True)
@@ -559,7 +555,6 @@ with tab4:
                     img_res_path = os.path.join(tmpdir, "efectividad_general.png")
                     fig_res.write_image(img_res_path, width=900, height=480, scale=2)
                     
-                    # 2. Distribución Global por Elemento
                     df_elem = df_pdf["Elemento"].value_counts().reset_index()
                     df_elem.columns = ["Elemento", "Cantidad"]
                     df_elem = df_elem.sort_values(by="Cantidad", ascending=True)
@@ -604,7 +599,6 @@ with tab4:
                     pdf.image(img_res_path, x=15, y=30, w=180)
                     pdf.image(img_elem_path, x=15, y=145, w=180)
                     
-                    # PÁGINA 3 EN ADELANTE: DISPOSICIÓN VERTICAL
                     elementos_unicos = [e for e in ELEMENTOS_LISTA if e in df_pdf["Elemento"].unique()]
                     
                     for idx, elem_nombre in enumerate(elementos_unicos):
@@ -616,7 +610,6 @@ with tab4:
                         
                         df_sub = df_pdf[df_pdf["Elemento"] == elem_nombre]
                         
-                        # 1. Mapa de Pista Grande
                         fig_pista_elem = dibujar_pista(df_puntos=df_sub, modo="calor")
                         fig_pista_elem.update_layout(
                             paper_bgcolor="white", 
@@ -627,7 +620,6 @@ with tab4:
                         img_pista_sub_path = os.path.join(tmpdir, f"pista_sub_{idx}.png")
                         fig_pista_elem.write_image(img_pista_sub_path, width=1000, height=480, scale=2)
                         
-                        # 2. Gráfico de BARRAS de Efectividad específico
                         df_sub_counts = df_sub["Resultado"].value_counts().reset_index()
                         df_sub_counts.columns = ["Resultado", "Cantidad"]
                         df_sub_counts = df_sub_counts.sort_values(by="Cantidad", ascending=True)
@@ -666,7 +658,6 @@ with tab4:
                         img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
                         fig_sub.write_image(img_sub_path, width=900, height=450, scale=2)
                         
-                        # RENDERIZADO VERTICAL
                         y_pista = pdf.get_y()
                         pdf.image(img_pista_sub_path, x=20, y=y_pista, w=170)
                         
@@ -684,7 +675,7 @@ with tab4:
                             
                         pdf.multi_cell(190, 6, text=limpiar_texto(nota_texto), border=1)
 
-                    # PÁGINA FINAL: TABLA DETALLADA DE REGISTROS
+                    # PÁGINA FINAL
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("4. Tabla Registro Detallado de Acciones"), new_x="LMARGIN", new_y="NEXT")
@@ -708,7 +699,12 @@ with tab4:
                         pdf.cell(40, 7, limpiar_texto(row['Zona']), border=1)
                         pdf.ln()
 
-                    pdf_bytes = bytes(pdf.output())
+                    # FIX COMPATIBILIDAD SALIDA FPDF2
+                    raw_output = pdf.output()
+                    if isinstance(raw_output, str):
+                        pdf_bytes = raw_output.encode('latin-1')
+                    else:
+                        pdf_bytes = bytes(raw_output)
                     
                     st.success("✅ ¡PDF optimizado generado con éxito!")
                     st.download_button(
