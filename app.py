@@ -403,28 +403,25 @@ with tab_obs:
     if rival_obs_sel not in st.session_state.observaciones:
         st.session_state.observaciones[rival_obs_sel] = {}
 
-    st.subheader("⚽ Observaciones Generales (Página 1 del PDF)")
-    col_ataque, col_defensa = st.columns(2)
+    st.subheader("⚽ Observaciones Posicionales (Portada del PDF)")
     
-    with col_ataque:
-        val_ataque = st.session_state.observaciones[rival_obs_sel].get("Ataque Posicional", "")
-        st.session_state.observaciones[rival_obs_sel]["Ataque Posicional"] = st.text_area(
-            label="⚔️ **Ataque Posicional**",
-            value=val_ataque,
-            placeholder="Ej: Salida de 3-1 con pívot dominante, rotación rápida...",
-            key=f"obs_input_{rival_obs_sel}_Ataque_Posicional",
-            height=120
-        )
-        
-    with col_defensa:
-        val_defensa = st.session_state.observaciones[rival_obs_sel].get("Defensa Posicional", "")
-        st.session_state.observaciones[rival_obs_sel]["Defensa Posicional"] = st.text_area(
-            label="🛡️ **Defensa Posicional**",
-            value=val_defensa,
-            placeholder="Ej: Defensa individual en 1/2 pista, saltan en banda...",
-            key=f"obs_input_{rival_obs_sel}_Defensa_Posicional",
-            height=120
-        )
+    val_ataque = st.session_state.observaciones[rival_obs_sel].get("Ataque Posicional", "")
+    st.session_state.observaciones[rival_obs_sel]["Ataque Posicional"] = st.text_area(
+        label="⚔️ **Ataque Posicional**",
+        value=val_ataque,
+        placeholder="Ej: Salida de 3-1 con pívot dominante, rotación rápida...",
+        key=f"obs_input_{rival_obs_sel}_Ataque_Posicional",
+        height=100
+    )
+    
+    val_defensa = st.session_state.observaciones[rival_obs_sel].get("Defensa Posicional", "")
+    st.session_state.observaciones[rival_obs_sel]["Defensa Posicional"] = st.text_area(
+        label="🛡️ **Defensa Posicional**",
+        value=val_defensa,
+        placeholder="Ej: Defensa individual en 1/2 pista, saltan en banda...",
+        key=f"obs_input_{rival_obs_sel}_Defensa_Posicional",
+        height=100
+    )
 
     st.markdown("---")
     st.subheader("🎯 Observaciones por Elemento de Juego")
@@ -457,7 +454,7 @@ with tab4:
                 pdf = FPDF()
                 pdf.set_auto_page_break(auto=True, margin=15)
                 
-                # PÁGINA 1: PORTADA, MAPA DE PISTA GENERAL Y OBSERVACIONES POSICIONALES
+                # PÁGINA 1: PORTADA, MAPA DE PISTA GENERAL Y OBSERVACIONES POSICIONALES (UNA DEBAJO DE OTRA)
                 pdf.add_page()
                 pdf.set_font("Helvetica", 'B', 18)
                 pdf.cell(190, 10, text=limpiar_texto("INFORME TACTICO Y DE SCOUTING"), new_x="LMARGIN", new_y="NEXT", align='C')
@@ -472,45 +469,36 @@ with tab4:
                     fig_pista_pdf = dibujar_pista(df_puntos=df_pdf, modo="calor")
                     fig_pista_pdf.update_layout(paper_bgcolor="white", plot_bgcolor="#0f172a")
                     img_pista_path = os.path.join(tmpdir, "mapa_pista.png")
-                    fig_pista_pdf.write_image(img_pista_path, width=1000, height=520, scale=2)
+                    fig_pista_pdf.write_image(img_pista_path, width=1000, height=500, scale=2)
                     
                     pdf.set_font("Helvetica", 'B', 11)
                     pdf.cell(190, 6, text=limpiar_texto("1. Mapa de Calor General (Todas las acciones)"), new_x="LMARGIN", new_y="NEXT")
                     pdf.image(img_pista_path, x=10, w=190)
-                    pdf.ln(4)
+                    pdf.ln(3)
                     
-                    # BLOQUE DE OBSERVACIONES: ATAQUE Y DEFENSA POSICIONAL EN PORTADA
+                    # BLOQUE DE OBSERVACIONES: UNA DEBAJO DE LA OTRA (ANCHO COMPLETO 190mm)
                     pdf.set_font("Helvetica", 'B', 11)
                     pdf.cell(190, 6, text=limpiar_texto("Observaciones Posicionales:"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(1)
                     
-                    # Columna 1: Ataque Posicional
+                    # Bloque 1: Ataque Posicional
                     pdf.set_font("Helvetica", 'B', 10)
-                    pdf.cell(92, 6, text=limpiar_texto("Ataque Posicional:"), border=1, align='L')
-                    pdf.cell(6, 6, text="", border=0) # Espacio entre columnas
-                    pdf.cell(92, 6, text=limpiar_texto("Defensa Posicional:"), border=1, align='L', new_x="LMARGIN", new_y="NEXT")
-                    
+                    pdf.cell(190, 6, text=limpiar_texto("Ataque Posicional:"), border=1, new_x="LMARGIN", new_y="NEXT")
                     pdf.set_font("Helvetica", size=9)
                     nota_ataque = obs_rival.get("Ataque Posicional", "").strip()
-                    if not nota_ataque: nota_ataque = "Sin observaciones registradas."
+                    if not nota_ataque: 
+                        nota_ataque = "Sin observaciones registradas."
+                    pdf.multi_cell(190, 5, text=limpiar_texto(nota_ataque), border=1)
+                    pdf.ln(3)
                     
+                    # Bloque 2: Defensa Posicional
+                    pdf.set_font("Helvetica", 'B', 10)
+                    pdf.cell(190, 6, text=limpiar_texto("Defensa Posicional:"), border=1, new_x="LMARGIN", new_y="NEXT")
+                    pdf.set_font("Helvetica", size=9)
                     nota_defensa = obs_rival.get("Defensa Posicional", "").strip()
-                    if not nota_defensa: nota_defensa = "Sin observaciones registradas."
-
-                    y_inicial_obs = pdf.get_y()
-                    
-                    # Dibujar caja Ataque (Izquierda)
-                    pdf.set_xy(10, y_inicial_obs)
-                    pdf.multi_cell(92, 5, text=limpiar_texto(nota_ataque), border=1)
-                    y_fin_ataque = pdf.get_y()
-                    
-                    # Dibujar caja Defensa (Derecha)
-                    pdf.set_xy(108, y_inicial_obs)
-                    pdf.multi_cell(92, 5, text=limpiar_texto(nota_defensa), border=1)
-                    y_fin_defensa = pdf.get_y()
-                    
-                    # Ajustar posición Y final tras el bloque de dos columnas
-                    pdf.set_y(max(y_fin_ataque, y_fin_defensa) + 5)
+                    if not nota_defensa: 
+                        nota_defensa = "Sin observaciones registradas."
+                    pdf.multi_cell(190, 5, text=limpiar_texto(nota_defensa), border=1)
                     
                     # PÁGINA 2: GRÁFICOS GENERALES (BARRAS HORIZONTALES)
                     pdf.add_page()
