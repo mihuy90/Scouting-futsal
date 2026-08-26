@@ -58,7 +58,8 @@ SYMBOL_ELEMENTO_MAP = {
     "Falta Directa": "circle-open-dot",
     "Doble Penalti": "circle-open-dot",
     "Penalti": "circle-open-dot",
-    "Juego Continuo / Tiro": "circle"
+    "Juego Continuo / Tiro": "circle",
+    "5x4 / Portero Jugador": "star"
 }
 
 SIZE_MAP = {
@@ -75,7 +76,8 @@ ELEMENTOS_LISTA = [
     "Falta Directa", 
     "Doble Penalti", 
     "Penalti", 
-    "Juego Continuo / Tiro"
+    "Juego Continuo / Tiro",
+    "5x4 / Portero Jugador"
 ]
 
 def dibujar_pista(df_puntos=None, modo="limpio"):
@@ -290,6 +292,7 @@ with tab2:
             * 🔷 **Diamante:** Banda
             * ✖️ **Cruz:** Contraataque
             * 🎯 **Diana (círculo con punto):** Falta / Penalti
+            * ⭐ **Estrella:** 5x4 / Portero Jugador
             * 🟡🔴⚪ **Círculo:** Juego Continuo / Tiro Libre
             """)
         else:
@@ -407,7 +410,7 @@ with tab_obs:
         texto_nota = st.text_area(
             label=f"📌 Notas sobre: **{elem}**",
             value=val_previo,
-            placeholder=f"Ej: Suelen buscar bloqueo al primer palo en los {elem.lower()}s. Ojo con la llegada desde atrás...",
+            placeholder=f"Ej: Suelen buscar juego interior o tiro exterior en {elem.lower()}...",
             key=f"obs_input_{rival_obs_sel}_{elem}",
             height=100
         )
@@ -451,13 +454,13 @@ with tab4:
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(5)
                     
-                    # PÁGINA 2: GRÁFICOS GENERALES (AMBOS DE BARRAS)
+                    # PÁGINA 2: GRÁFICOS GENERALES (BARRAS HORIZONTALES)
                     pdf.add_page()
                     pdf.set_font("Helvetica", 'B', 14)
                     pdf.cell(190, 10, text=limpiar_texto("2. Analisis de Efectividad General y Distribucion"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(2)
                     
-                    # 1. Efectividad Global (Ahorra cambiado a Gráfico de Barras Horizontales)
+                    # 1. Efectividad Global
                     df_res = df_pdf["Resultado"].value_counts().reset_index()
                     df_res.columns = ["Resultado", "Cantidad"]
                     df_res = df_res.sort_values(by="Cantidad", ascending=True)
@@ -478,11 +481,7 @@ with tab4:
                         color_discrete_map=COLOR_MAP_PDF
                     )
 
-                    fig_res.update_traces(
-                        textposition='outside',
-                        textfont_size=12
-                    )
-
+                    fig_res.update_traces(textposition='outside', textfont_size=12)
                     fig_res.update_layout(
                         title_text="Efectividad Global (% Resultados)", 
                         paper_bgcolor="white", 
@@ -502,7 +501,7 @@ with tab4:
                     img_res_path = os.path.join(tmpdir, "efectividad_general.png")
                     fig_res.write_image(img_res_path, width=900, height=480, scale=2)
                     
-                    # 2. Distribución Global por Elemento (Barras Horizontales)
+                    # 2. Distribución Global por Elemento
                     df_elem = df_pdf["Elemento"].value_counts().reset_index()
                     df_elem.columns = ["Elemento", "Cantidad"]
                     df_elem = df_elem.sort_values(by="Cantidad", ascending=True)
