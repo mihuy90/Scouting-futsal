@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from fpdf import FPDF
@@ -120,14 +121,25 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
         fig.add_shape(l)
 
     if modo == "calor" and df_puntos is not None and not df_puntos.empty:
+        # APLICACIÓN DE JITTERING MILIMÉTRICO (Dispersión sutil ~10-15 cm)
+        df_render = df_puntos.copy()
+        
+        # Fijamos la semilla aleatoria para que los puntos no oscilen al refrescar la pantalla
+        np.random.seed(42)
+        
+        # Generamos desplazamiento milimétrico (-0.12m a +0.12m)
+        df_render["X_render"] = df_render["X"] + np.random.uniform(-0.12, 0.12, size=len(df_render))
+        df_render["Y_render"] = df_render["Y"] + np.random.uniform(-0.12, 0.12, size=len(df_render))
+
         for res in ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"]:
-            df_sub = df_puntos[df_puntos["Resultado"] == res]
+            df_sub = df_render[df_render["Resultado"] == res]
             if not df_sub.empty:
                 simbolos = [SYMBOL_ELEMENTO_MAP.get(str(elem), "circle") for elem in df_sub["Elemento"]]
                 
+                # Aura
                 fig.add_trace(go.Scatter(
-                    x=df_sub["X"],
-                    y=df_sub["Y"],
+                    x=df_sub["X_render"],
+                    y=df_sub["Y_render"],
                     mode="markers",
                     marker=dict(
                         size=SIZE_MAP.get(res, 12) * 2.3,
@@ -138,9 +150,10 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
                     showlegend=False
                 ))
 
+                # Marcador Principal (Usamos X_render y Y_render)
                 fig.add_trace(go.Scatter(
-                    x=df_sub["X"],
-                    y=df_sub["Y"],
+                    x=df_sub["X_render"],
+                    y=df_sub["Y_render"],
                     mode="markers",
                     name=res,
                     marker=dict(
@@ -149,8 +162,8 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
                         symbol=simbolos,
                         line=dict(width=1.5, color="black")
                     ),
-                    text=[f"{row['Elemento']} | {row['Resultado']} ({row['Jornada']})" for _, row in df_sub.iterrows()],
-                    hoverinfo="text+x+y"
+                    text=[f"{row['Elemento']} | {row['Resultado']} ({row['Jornada']}) [X:{row['X']}m, Y:{row['Y']}m]" for _, row in df_sub.iterrows()],
+                    hoverinfo="text"
                 ))
 
     fig.update_layout(
@@ -454,7 +467,7 @@ with tab4:
                 pdf = FPDF()
                 pdf.set_auto_page_break(auto=True, margin=15)
                 
-                # PÁGINA 1: PORTADA, MAPA DE PISTA GENERAL Y OBSERVACIONES POSICIONALES (UNA DEBAJO DE OTRA)
+                # PÁGINA 1: PORTADA, MAPA DE PISTA GENERAL Y OBSERVACIONES POSICIONALES
                 pdf.add_page()
                 pdf.set_font("Helvetica", 'B', 18)
                 pdf.cell(190, 10, text=limpiar_texto("INFORME TACTICO Y DE SCOUTING"), new_x="LMARGIN", new_y="NEXT", align='C')
@@ -476,7 +489,7 @@ with tab4:
                     pdf.image(img_pista_path, x=10, w=190)
                     pdf.ln(3)
                     
-                    # BLOQUE DE OBSERVACIONES: UNA DEBAJO DE LA OTRA (ANCHO COMPLETO 190mm)
+                    # BLOQUE DE OBSERVACIONES: UNA DEBAJO DE LA OTRA
                     pdf.set_font("Helvetica", 'B', 11)
                     pdf.cell(190, 6, text=limpiar_texto("Observaciones Posicionales:"), new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(1)
@@ -592,7 +605,7 @@ with tab4:
                     pdf.image(img_res_path, x=15, y=30, w=180)
                     pdf.image(img_elem_path, x=15, y=145, w=180)
                     
-                    # PÁGINA 3 EN ADELANTE: DISPOSICIÓN VERTICAL CON BARRAS HORIZONTALES
+                    # PÁGINA 3 EN ADELANTE: DISPOSICIÓN VERTICAL
                     elementos_unicos = [e for e in ELEMENTOS_LISTA if e in df_pdf["Elemento"].unique()]
                     
                     for idx, elem_nombre in enumerate(elementos_unicos):
@@ -604,7 +617,7 @@ with tab4:
                         
                         df_sub = df_pdf[df_pdf["Elemento"] == elem_nombre]
                         
-                        # 1. Mapa de Pista Grande (Superior Centrado)
+                        # 1. Mapa de Pista Grande
                         fig_pista_elem = dibujar_pista(df_puntos=df_sub, modo="calor")
                         fig_pista_elem.update_layout(
                             paper_bgcolor="white", 
@@ -615,7 +628,7 @@ with tab4:
                         img_pista_sub_path = os.path.join(tmpdir, f"pista_sub_{idx}.png")
                         fig_pista_elem.write_image(img_pista_sub_path, width=1000, height=480, scale=2)
                         
-                        # 2. Gráfico de BARRAS de Efectividad específico para este Elemento
+                        # 2. Gráfico de BARRAS de Efectividad específico
                         df_sub_counts = df_sub["Resultado"].value_counts().reset_index()
                         df_sub_counts.columns = ["Resultado", "Cantidad"]
                         df_sub_counts = df_sub_counts.sort_values(by="Cantidad", ascending=True)
@@ -654,17 +667,13 @@ with tab4:
                         img_sub_path = os.path.join(tmpdir, f"sub_{idx}.png")
                         fig_sub.write_image(img_sub_path, width=900, height=450, scale=2)
                         
-                        # --- RENDERIZADO VERTICAL ---
-                        
-                        # A) Pista (Ancho 170mm, centrada a x=20)
+                        # RENDERIZADO VERTICAL
                         y_pista = pdf.get_y()
                         pdf.image(img_pista_sub_path, x=20, y=y_pista, w=170)
                         
-                        # B) Gráfico de Barras de Efectividad Centrado
                         y_barras = y_pista + 84
                         pdf.image(img_sub_path, x=20, y=y_barras, w=170)
                         
-                        # C) Bloque de Notas al final de la hoja llenando el espacio restante
                         pdf.set_y(y_barras + 85)
                         pdf.set_font("Helvetica", 'B', 11)
                         pdf.cell(190, 7, text=limpiar_texto("Notas y Conclusiones Tácticas:"), new_x="LMARGIN", new_y="NEXT")
