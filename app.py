@@ -121,15 +121,14 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
         fig.add_shape(l)
 
     if modo == "calor" and df_puntos is not None and not df_puntos.empty:
-        # APLICACIÓN DE JITTERING MILIMÉTRICO (Dispersión sutil ~10-15 cm)
         df_render = df_puntos.copy()
         
-        # Fijamos la semilla aleatoria para que los puntos no oscilen al refrescar la pantalla
+        # Fijamos la semilla para estabilidad visual
         np.random.seed(42)
         
-        # Generamos desplazamiento milimétrico (-0.12m a +0.12m)
-        df_render["X_render"] = df_render["X"] + np.random.uniform(-0.12, 0.12, size=len(df_render))
-        df_render["Y_render"] = df_render["Y"] + np.random.uniform(-0.12, 0.12, size=len(df_render))
+        # AJUSTE: Ampliamos a +-0.35 metros (~35 cm) para separar los marcadores un chis más
+        df_render["X_render"] = df_render["X"] + np.random.uniform(-0.35, 0.35, size=len(df_render))
+        df_render["Y_render"] = df_render["Y"] + np.random.uniform(-0.35, 0.35, size=len(df_render))
 
         for res in ["Gol", "Remate a Puerta", "Remate Fuera", "Pérdida / Bloqueado"]:
             df_sub = df_render[df_render["Resultado"] == res]
@@ -150,7 +149,7 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
                     showlegend=False
                 ))
 
-                # Marcador Principal (Usamos X_render y Y_render)
+                # Marcador Principal
                 fig.add_trace(go.Scatter(
                     x=df_sub["X_render"],
                     y=df_sub["Y_render"],
