@@ -123,10 +123,8 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
     if modo == "calor" and df_puntos is not None and not df_puntos.empty:
         df_render = df_puntos.copy()
         
-        # Fijamos la semilla para estabilidad visual
         np.random.seed(42)
         
-        # AJUSTE: Ampliamos a +-0.35 metros (~35 cm) para separar los marcadores un chis más
         df_render["X_render"] = df_render["X"] + np.random.uniform(-0.35, 0.35, size=len(df_render))
         df_render["Y_render"] = df_render["Y"] + np.random.uniform(-0.35, 0.35, size=len(df_render))
 
@@ -149,11 +147,11 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
                     showlegend=False
                 ))
 
-                # Marcador Principal con etiquetas de ID
+                # Marcador Principal
                 fig.add_trace(go.Scatter(
                     x=df_sub["X_render"],
                     y=df_sub["Y_render"],
-                    mode="markers+text",
+                    mode="markers",
                     name=res,
                     marker=dict(
                         size=SIZE_MAP.get(res, 12),
@@ -161,10 +159,7 @@ def dibujar_pista(df_puntos=None, modo="limpio"):
                         symbol=simbolos,
                         line=dict(width=1.5, color="black")
                     ),
-                    text=[f"#{idx}" for idx in df_sub.index],
-                    textposition="top center",
-                    textfont=dict(color="white", size=9),
-                    hovertext=[f"ID #{idx} | {row['Elemento']} | {row['Resultado']} ({row['Jornada']}) [X:{row['X']}m, Y:{row['Y']}m]" for idx, row in df_sub.iterrows()],
+                    hovertext=[f"{row['Elemento']} | {row['Resultado']} ({row['Jornada']}) [X:{row['X']}m, Y:{row['Y']}m]" for idx, row in df_sub.iterrows()],
                     hoverinfo="text"
                 ))
 
@@ -282,7 +277,7 @@ with tab1:
             st.success(f"📌 ¡Guardado! {elemento} ({resultado}) en X:{pos_x}m, Y:{pos_y}m")
             st.rerun()
 
-# PESTAÑA 2: MAPA DE CALOR CON GESTOR DE BORRADO INTEGRADO
+# PESTAÑA 2: MAPA DE CALOR
 with tab2:
     st.header("🔥 Mapa de Calor y Origen del Golpeo")
     if not df_totales.empty:
@@ -311,30 +306,12 @@ with tab2:
             * ✴️ **Estrella (Hexagrama):** 5x4 / Portero Jugador
             * 🟡🔴⚪ **Círculo:** Juego Continuo / Tiro Libre
             """)
-
-            # --- SECCIÓN DE BORRADO DE REGISTROS ---
-            st.markdown("---")
-            st.subheader("🗑️ Eliminar Acciones del Mapa")
-            st.caption("Los números `#ID` corresponden con los numeritos blancos marcados en los puntos de la pista.")
-
-            for idx, row in df_mapa.iterrows():
-                c_desc, c_del = st.columns([5, 1])
-                with c_desc:
-                    st.markdown(
-                        f"🔹 **ID #{idx}** | **{row['Elemento']}** - *{row['Resultado']}* | "
-                        f"Posición: (X: **{row['X']}m**, Y: **{row['Y']}m**) | {row['Jornada']}"
-                    )
-                with c_del:
-                    if st.button("🗑️ Borrar", key=f"btn_del_tab2_{idx}", type="secondary"):
-                        st.session_state.datos = st.session_state.datos.drop(index=idx).reset_index(drop=True)
-                        st.success(f"Acción #{idx} eliminada.")
-                        st.rerun()
         else:
             st.warning("No hay datos para este filtro.")
     else:
         st.info("Aún no has registrado ningún tiro.")
 
-# PESTAÑA 3: ESTADÍSTICAS
+# PESTAÑA 3: ESTADÍSTICAS Y GESTOR DE BORRADO
 with tab3:
     st.header("📊 Estadísticas Acumuladas & Efectividad")
     if not df_totales.empty:
@@ -419,9 +396,35 @@ with tab3:
                 st.plotly_chart(fig_pie_elem, use_container_width=True)
 
         st.markdown("---")
-        st.subheader("📋 Registro Detallado")
+        st.subheader("📋 Registro Detallado y Borrado de Acciones")
+        st.caption("Puedes eliminar cualquier acción individualmente pulsando su botón 'Borrar'.")
+        
         df_ordenado = df_rival2.sort_values(by=["Elemento", "Resultado"], ascending=True)
-        st.dataframe(df_ordenado, use_container_width=True)
+
+        # Encabezados de la tabla interactiva
+        c_elem, c_res, c_pos, c_jor, c_zona, c_act = st.columns([2, 2, 2, 2, 1.5, 1.5])
+        c_elem.markdown("**Elemento**")
+        c_res.markdown("**Resultado**")
+        c_pos.markdown("**Posición (X, Y)**")
+        c_jor.markdown("**Jornada**")
+        c_zona.markdown("**Zona**")
+        c_act.markdown("**Acción**")
+        st.markdown("---")
+
+        # Filas interactivas con botón de borrado
+        for idx, row in df_ordenado.iterrows():
+            c_elem, c_res, c_pos, c_jor, c_zona, c_act = st.columns([2, 2, 2, 2, 1.5, 1.5])
+            c_elem.write(row['Elemento'])
+            c_res.write(row['Resultado'])
+            c_pos.write(f"X: {row['X']}m, Y: {row['Y']}m")
+            c_jor.write(row['Jornada'])
+            c_zona.write(row['Zona'])
+            
+            if c_act.button("🗑️ Borrar", key=f"btn_del_stat_{idx}"):
+                st.session_state.datos = st.session_state.datos.drop(index=idx).reset_index(drop=True)
+                st.success("Acción eliminada con éxito.")
+                st.rerun()
+
     else:
         st.info("No hay datos estadísticos acumulados.")
 
